@@ -22,6 +22,11 @@ MAX_ITERATIONS = 20
 
 def paper_analyst_node(state: PipelineState) -> dict:
     """LangGraph node: agentic paper analysis → replication_spec.yaml"""
+    # Skip if spec was provided directly (--spec flag)
+    if state.get("replication_spec") and state.get("replication_spec_path"):
+        log.info("Spec already provided — skipping Paper Analyst")
+        return {"spec_approved": state.get("spec_approved", False), "current_stage": 0}
+
     run_dir = Path(state["run_dir"])
     config = state["config"]
     paper_path = state.get("paper_pdf_path", "")

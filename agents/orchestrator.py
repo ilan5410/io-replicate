@@ -26,19 +26,17 @@ log = logging.getLogger("orchestrator")
 
 def human_approval_node(state: PipelineState) -> dict:
     """
-    Blocks for human review of the replication_spec.
-    In CLI mode, this is handled by the CLI before invoking the graph.
-    In programmatic mode, set spec_approved=True in the initial state to skip.
+    Checks spec approval before proceeding to data acquisition.
+    The CLI sets spec_approved=True after the human confirms (or --auto-approve).
+    If reached without approval, raises to force the user through the CLI.
     """
     if state.get("spec_approved", False):
-        log.info("Spec pre-approved — skipping human approval checkpoint")
+        log.info("Spec approved — proceeding to data acquisition")
         return {}
-    # This node should not normally be reached without prior approval
-    # (the CLI sets spec_approved=True after the human confirms)
     raise RuntimeError(
         "replication_spec must be reviewed and approved before the pipeline can proceed. "
-        "Use the CLI (io-replicate run) which handles this interactively, or set "
-        "spec_approved=True in the initial state."
+        "Use: io-replicate run --spec <path>  (will prompt for approval)\n"
+        "Or:  io-replicate run --spec <path> --auto-approve  (skip prompt)"
     )
 
 
