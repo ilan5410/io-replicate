@@ -32,9 +32,9 @@ properties:
         type: integer
         minimum: 1990
       journal:
-        type: string
+        type: [string, "null"]
       doi:
-        type: string
+        type: [string, "null"]
 
   geography:
     type: object

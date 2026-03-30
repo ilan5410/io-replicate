@@ -115,6 +115,8 @@ def run(paper, spec, config, start_stage, only, auto_approve):
         "error_log": [],
     }
 
+    checkpoint_db = str(runs_dir / "checkpoints.sqlite")
+
     # If spec provided, load it and skip Paper Analyst
     if spec:
         with open(spec) as f:
@@ -123,7 +125,6 @@ def run(paper, spec, config, start_stage, only, auto_approve):
         initial_state["replication_spec_path"] = str(spec)
 
         if not auto_approve:
-            # Show spec summary and ask for approval
             _show_spec_summary(spec_data)
             approved = click.confirm("\nApprove this spec and proceed with the pipeline?", default=True)
             if not approved:
@@ -132,12 +133,44 @@ def run(paper, spec, config, start_stage, only, auto_approve):
 
         initial_state["spec_approved"] = True
 
-    # Run the graph
-    checkpoint_db = str(runs_dir / "checkpoints.sqlite")
+    elif paper:
+        # --paper flow: run Paper Analyst first, prompt for approval, then continue
+        console.print(Panel("[bold]Stage 0: Paper Analyst — reading paper PDF...[/bold]"))
+        from nodes.paper_analyst import paper_analyst_node
+        try:
+            updates = paper_analyst_node(initial_state)
+            initial_state.update(updates)
+        except Exception as e:
+            _print_error(e)
+            sys.exit(1)
+
+        spec_data = initial_state.get("replication_spec", {})
+        spec_path = initial_state.get("replication_spec_path", "")
+        if not spec_data:
+            console.print("[red]Paper Analyst did not produce a spec. Check the run directory.[/red]")
+            sys.exit(1)
+
+        console.print(f"\nSpec written to: [bold]{spec_path}[/bold]")
+
+        if not auto_approve:
+            _show_spec_summary(spec_data)
+            console.print(f"\nYou can edit the spec at: [bold]{spec_path}[/bold]")
+            approved = click.confirm("\nApprove this spec and proceed with the pipeline?", default=True)
+            if not approved:
+                console.print(f"[yellow]Pipeline paused. Edit the spec then re-run:[/yellow]")
+                console.print(f"  io-replicate run --spec {spec_path} --start-stage 1")
+                sys.exit(0)
+
+        initial_state["spec_approved"] = True
+
+    # Build and run the graph from the appropriate stage
     if only:
         app = build_graph_from_stage(start_stage or 0, only_stage=only, checkpoint_db=checkpoint_db)
     elif start_stage is not None:
         app = build_graph_from_stage(start_stage, checkpoint_db=checkpoint_db)
+    elif paper:
+        # Paper Analyst already ran — start from data_acquirer
+        app = build_graph_from_stage(1, checkpoint_db=checkpoint_db)
     else:
         app = build_graph(checkpoint_db=checkpoint_db)
 
