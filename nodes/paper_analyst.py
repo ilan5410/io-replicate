@@ -1,100 +1,157 @@
 """
-Stage 0: Paper Analyst (AGENTIC)
-Reads a paper PDF/text and produces replication_spec.yaml.
+Stage 0: Paper Analyst
+ONE single Anthropic API call: read the PDF, produce replication_spec.yaml.
+No tool-calling loop — the full paper text is sent in one prompt.
 """
 import logging
+import os
+import re
 from pathlib import Path
 
 import yaml
-from langchain_core.messages import HumanMessage, SystemMessage
 
-from agents.llm import get_llm
-from agents.prompts import PAPER_ANALYST_SYSTEM_PROMPT
 from agents.state import PipelineState
-from agents.tools import read_file, write_file, list_files
 from agents.validators import validate_spec
 
 log = logging.getLogger("paper_analyst")
 
-TOOLS = [read_file, write_file, list_files]
-MAX_ITERATIONS = 20
+_SCHEMA_PATH = Path(__file__).parents[1] / "schemas" / "replication_spec_schema.yaml"
+_EXAMPLE_SPEC_PATH = Path(__file__).parents[1] / "specs" / "figaro_2019" / "replication_spec.yaml"
 
 
 def paper_analyst_node(state: PipelineState) -> dict:
-    """LangGraph node: agentic paper analysis → replication_spec.yaml"""
-    # Skip if spec was provided directly (--spec flag)
+    """
+    Read the paper PDF and produce replication_spec.yaml in one Anthropic API call.
+    Skips if a spec is already loaded in state.
+    """
+    # Skip if spec already provided (--spec flag)
     if state.get("replication_spec") and state.get("replication_spec_path"):
         log.info("Spec already provided — skipping Paper Analyst")
         return {"spec_approved": state.get("spec_approved", False), "current_stage": 0}
 
     run_dir = Path(state["run_dir"])
-    config = state["config"]
     paper_path = state.get("paper_pdf_path", "")
-    user_hints = state.get("user_hints", "")
+    config = state.get("config", {})
 
-    spec_output_path = run_dir / "replication_spec.yaml"
+    if not paper_path or not Path(paper_path).exists():
+        raise FileNotFoundError(f"Paper PDF not found: {paper_path}")
 
-    llm = get_llm("paper_analyst", config).bind_tools(TOOLS)
+    # 1. Extract text from PDF
+    log.info(f"Reading PDF: {paper_path}")
+    paper_text = _read_pdf(paper_path)
+    log.info(f"PDF extracted: {len(paper_text)} characters")
 
-    system_prompt = PAPER_ANALYST_SYSTEM_PROMPT.replace("{run_dir}", str(run_dir))
-    initial_message = (
-        f"Please analyze the following paper and produce a replication_spec.yaml.\n\n"
-        f"Paper path: {paper_path}\n"
-        f"Output path: {spec_output_path}\n"
-    )
-    if user_hints:
-        initial_message += f"\nUser hints: {user_hints}\n"
+    # 2. Load schema and example spec for context
+    schema_text = _SCHEMA_PATH.read_text()
+    example_spec_text = _EXAMPLE_SPEC_PATH.read_text()
 
-    messages = [
-        SystemMessage(content=system_prompt),
-        HumanMessage(content=initial_message),
-    ]
+    # 3. Build the single prompt
+    user_hints = state.get("user_hints") or ""
+    prompt = _build_prompt(paper_text, schema_text, example_spec_text, user_hints)
 
-    tool_map = {t.name: t for t in TOOLS}
+    # 4. ONE Anthropic API call
+    log.info("Sending single prompt to Opus...")
+    spec_yaml = _call_opus(prompt, config)
 
-    for iteration in range(MAX_ITERATIONS):
-        response = llm.invoke(messages)
-        messages.append(response)
-
-        if not response.tool_calls:
-            # Agent is done
-            log.info(f"Paper Analyst finished after {iteration+1} iterations")
-            break
-
-        # Execute tool calls
-        for tool_call in response.tool_calls:
-            tool_name = tool_call["name"]
-            tool_args = tool_call["args"]
-            tool_id = tool_call["id"]
-
-            if tool_name not in tool_map:
-                result = f"ERROR: Unknown tool '{tool_name}'"
-            else:
-                result = tool_map[tool_name].invoke(tool_args)
-
-            from langchain_core.messages import ToolMessage
-            messages.append(ToolMessage(content=str(result), tool_call_id=tool_id))
-
-    # Load and validate the written spec
-    if not spec_output_path.exists():
-        raise RuntimeError(
-            f"Paper Analyst failed to write spec to {spec_output_path}. "
-            f"Check the agent's output for errors."
-        )
-
-    with open(spec_output_path) as f:
-        spec = yaml.safe_load(f)
-
+    # 5. Parse and validate
+    spec = yaml.safe_load(spec_yaml)
     is_valid, errors = validate_spec(spec)
     if not is_valid:
-        log.warning(f"Spec validation errors: {errors}")
-        # Still continue — human will review before pipeline proceeds
+        log.warning(f"Spec has validation issues (will still proceed): {errors}")
 
-    log.info(f"Spec written to {spec_output_path}, valid={is_valid}")
+    # 6. Save
+    spec_path = run_dir / "replication_spec.yaml"
+    spec_path.write_text(spec_yaml)
+    log.info(f"Spec written to {spec_path}")
 
     return {
         "replication_spec": spec,
-        "replication_spec_path": str(spec_output_path),
-        "spec_approved": False,  # Must go through human_approval
+        "replication_spec_path": str(spec_path),
+        "spec_approved": False,
         "current_stage": 0,
     }
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _read_pdf(path: str) -> str:
+    """Extract all text from a PDF using pypdf."""
+    try:
+        from pypdf import PdfReader
+        reader = PdfReader(path)
+        pages = [page.extract_text() or "" for page in reader.pages]
+        return "\n\n".join(pages)
+    except ImportError:
+        raise ImportError("pypdf is required to read PDFs. Run: pip install pypdf")
+
+
+def _build_prompt(paper_text: str, schema_text: str, example_spec_text: str, user_hints: str) -> str:
+    hints_section = f"\n\nUser hints:\n{user_hints}" if user_hints else ""
+
+    return f"""You are analyzing an Input-Output economics paper to produce a structured replication spec.
+
+## Your task
+
+Read the paper below and produce a complete `replication_spec.yaml` that captures everything needed to replicate the paper's results. Output ONLY the YAML — no prose, no markdown fences, just the raw YAML content.
+
+## Schema to follow
+
+```yaml
+{schema_text}
+```
+
+## Example of a well-formed spec (for Rémond-Tiedrez et al. 2019)
+
+```yaml
+{example_spec_text}
+```
+
+## Instructions
+
+1. Extract all required fields from the paper (geography, classification, data sources, methodology, decompositions, outputs, benchmarks, limitations).
+2. For `industry_list`: list ALL industries found in the paper's annexes or methodology section with 1-based index, code, and label.
+3. For `benchmarks.values`: extract EVERY numerical result the paper reports that could be used for validation.
+4. For `outputs`: list EVERY table and figure in the paper, including annexes.
+5. If something is ambiguous, add a YAML comment `# AMBIGUITY: ...` on that line.
+6. Do NOT use the example spec's values — read them from the paper itself.{hints_section}
+
+## Paper text
+
+{paper_text}
+
+## Output
+
+Produce the complete replication_spec.yaml now (raw YAML only, no markdown fences):"""
+
+
+def _call_opus(prompt: str, config: dict) -> str:
+    """Make a single Anthropic API call and return the YAML string."""
+    import anthropic
+
+    providers_cfg = config.get("llm", {}).get("providers", {})
+    key_env = providers_cfg.get("anthropic", {}).get("api_key_env", "ANTHROPIC_API_KEY")
+    api_key = os.environ.get(key_env)
+    if not api_key:
+        raise EnvironmentError(f"ANTHROPIC_API_KEY not set (env var: {key_env})")
+
+    model = config.get("llm", {}).get("routing", {}).get("paper_analyst", "claude-opus-4-6")
+    # Strip provider prefix if present
+    if "/" in model:
+        model = model.split("/", 1)[1]
+
+    client = anthropic.Anthropic(api_key=api_key)
+    response = client.messages.create(
+        model=model,
+        max_tokens=8000,
+        messages=[{"role": "user", "content": prompt}],
+    )
+
+    raw = response.content[0].text.strip()
+
+    # Strip markdown fences if the model added them anyway
+    raw = re.sub(r"^```ya?ml\s*\n", "", raw, flags=re.IGNORECASE)
+    raw = re.sub(r"\n```\s*$", "", raw)
+
+    return raw.strip()
