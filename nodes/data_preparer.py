@@ -14,7 +14,7 @@ from agents.tools import make_execute_python_tool, read_file, write_file, list_f
 from agents.validators import validate_prepared_data
 
 log = logging.getLogger("data_preparer")
-MAX_AGENT_ITERATIONS = 25
+MAX_AGENT_ITERATIONS = 12  # write parse script + execute + fix if needed
 
 
 def data_preparer_node(state: PipelineState) -> dict:

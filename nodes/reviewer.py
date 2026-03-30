@@ -13,7 +13,7 @@ from agents.state import PipelineState
 from agents.tools import read_file, write_file, list_files
 
 log = logging.getLogger("reviewer")
-MAX_ITERATIONS = 20
+MAX_ITERATIONS = 8  # reviewer only needs: read 2-3 files + write report
 
 
 def reviewer_node(state: PipelineState) -> dict:
@@ -37,20 +37,16 @@ def reviewer_node(state: PipelineState) -> dict:
     limitations_str = "\n".join(f"- {l}" for l in spec.get("limitations", []))
 
     initial_message = (
-        f"Review the pipeline results for: {spec['paper']['title']} ({spec['paper']['year']})\n\n"
-        f"Run directory: {run_dir}\n"
-        f"Report output path: {report_path}\n\n"
-        f"Benchmarks to check:\n```yaml\n{benchmark_str}\n```\n\n"
+        f"Review pipeline results for: {spec['paper']['title']} ({spec['paper']['year']})\n\n"
+        f"Report path: {report_path}\n\n"
+        f"Benchmarks:\n```yaml\n{benchmark_str}\n```\n\n"
         f"Known limitations:\n{limitations_str}\n\n"
-        f"Data files available:\n"
-        f"  - {run_dir}/data/prepared/Em_EU.csv\n"
-        f"  - {run_dir}/data/model/A_EU.csv\n"
-        f"  - {run_dir}/data/model/L_EU.csv\n"
-        f"  - {run_dir}/data/model/d_EU.csv\n"
-        f"  - {run_dir}/data/model/em_exports_total.csv\n"
-        f"  - {run_dir}/data/model/em_exports_country_matrix.csv\n"
+        f"READ ONLY THESE FILES (small, safe):\n"
         f"  - {run_dir}/data/decomposition/country_decomposition.csv\n"
         f"  - {run_dir}/data/decomposition/industry_table4.csv\n"
+        f"  - {run_dir}/data/decomposition/industry_figure3.csv\n\n"
+        f"DO NOT read Z_EU, A_EU, L_EU, or em_exports_country_matrix — they are huge matrices.\n"
+        f"All country and industry results you need are in country_decomposition.csv and industry_table4.csv.\n"
     )
 
     messages = [

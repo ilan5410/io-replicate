@@ -13,7 +13,7 @@ from agents.state import PipelineState
 from agents.tools import make_execute_python_tool, read_file, write_file, list_files
 
 log = logging.getLogger("data_acquirer")
-MAX_ITERATIONS = 30
+MAX_ITERATIONS = 20  # write download script + execute + fix if needed
 
 
 def data_acquirer_node(state: PipelineState) -> dict:

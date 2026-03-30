@@ -41,13 +41,12 @@ def paper_analyst_node(state: PipelineState) -> dict:
     paper_text = _read_pdf(paper_path)
     log.info(f"PDF extracted: {len(paper_text)} characters")
 
-    # 2. Load schema and example spec for context
+    # 2. Load schema only (no example spec — that's thousands of wasted tokens)
     schema_text = _SCHEMA_PATH.read_text()
-    example_spec_text = _EXAMPLE_SPEC_PATH.read_text()
 
     # 3. Build the single prompt
     user_hints = state.get("user_hints") or ""
-    prompt = _build_prompt(paper_text, schema_text, example_spec_text, user_hints)
+    prompt = _build_prompt(paper_text, schema_text, user_hints)
 
     # 4. ONE Anthropic API call
     log.info("Sending single prompt to Opus...")
@@ -87,43 +86,35 @@ def _read_pdf(path: str) -> str:
         raise ImportError("pypdf is required to read PDFs. Run: pip install pypdf")
 
 
-def _build_prompt(paper_text: str, schema_text: str, example_spec_text: str, user_hints: str) -> str:
+def _build_prompt(paper_text: str, schema_text: str, user_hints: str) -> str:
     hints_section = f"\n\nUser hints:\n{user_hints}" if user_hints else ""
 
     return f"""You are analyzing an Input-Output economics paper to produce a structured replication spec.
 
 ## Your task
 
-Read the paper below and produce a complete `replication_spec.yaml` that captures everything needed to replicate the paper's results. Output ONLY the YAML — no prose, no markdown fences, just the raw YAML content.
+Read the paper below and produce a complete `replication_spec.yaml`. Output ONLY the raw YAML — no prose, no markdown fences.
 
-## Schema to follow
+## Schema
 
 ```yaml
 {schema_text}
 ```
 
-## Example of a well-formed spec (for Rémond-Tiedrez et al. 2019)
-
-```yaml
-{example_spec_text}
-```
-
 ## Instructions
 
-1. Extract all required fields from the paper (geography, classification, data sources, methodology, decompositions, outputs, benchmarks, limitations).
-2. For `industry_list`: list ALL industries found in the paper's annexes or methodology section with 1-based index, code, and label.
-3. For `benchmarks.values`: extract EVERY numerical result the paper reports that could be used for validation.
-4. For `outputs`: list EVERY table and figure in the paper, including annexes.
-5. If something is ambiguous, add a YAML comment `# AMBIGUITY: ...` on that line.
-6. Do NOT use the example spec's values — read them from the paper itself.{hints_section}
+1. Extract all required fields: paper metadata, geography, classification, data_sources, methodology, decompositions, outputs, benchmarks, limitations.
+2. `industry_list`: list ALL industries from the paper's annexes with 1-based index, code, and label.
+3. `benchmarks.values`: extract EVERY numerical result in the paper (employment totals, shares, industry totals).
+4. `outputs`: list EVERY table and figure including annexes.
+5. Flag ambiguities with YAML comments: `# AMBIGUITY: ...`
+6. `tolerances`: warning_pct: 10, error_pct: 25{hints_section}
 
-## Paper text
+## Paper
 
 {paper_text}
 
-## Output
-
-Produce the complete replication_spec.yaml now (raw YAML only, no markdown fences):"""
+## Output (raw YAML only):"""
 
 
 def _call_opus(prompt: str, config: dict) -> str:

@@ -13,7 +13,7 @@ from agents.state import PipelineState
 from agents.tools import make_execute_python_tool, read_file, write_file, list_files
 
 log = logging.getLogger("output_producer")
-MAX_ITERATIONS = 30
+MAX_ITERATIONS = 15  # write script + execute + fix if needed, per output item
 
 
 def output_producer_node(state: PipelineState) -> dict:
