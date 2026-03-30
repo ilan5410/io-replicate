@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "io-replicator"
+version = "0.1.0"
+description = "Generic multi-agent system for Input-Output paper replication"
+requires-python = ">=3.11"
+dependencies = [
+    "langgraph>=0.2",
+    "langchain-anthropic>=0.2",
+    "langchain-openai>=0.2",
+    "langchain-core>=0.3",
+    "anthropic>=0.36",
+    "openai>=1.0",
+    "pyyaml>=6.0",
+    "jsonschema>=4.0",
+    "numpy>=1.24",
+    "pandas>=2.0",
+    "matplotlib>=3.7",
+    "openpyxl>=3.1",
+    "click>=8.1",
+    "rich>=13.0",
+]
+
+[project.scripts]
+io-replicate = "cli.main:cli"
+
+[tool.setuptools.packages.find]
+where = ["."]

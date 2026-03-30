@@ -1,0 +1,259 @@
+# ===== replication_spec.yaml =====
+# Rémond-Tiedrez, Valderas-Jaramillo, Amores & Rueda-Cantuche (2019)
+# "The employment content of EU exports: an application of FIGARO tables"
+# EURONA, Issue 1, pp. 59–78
+
+paper:
+  title: "The employment content of EU exports: an application of FIGARO tables"
+  authors:
+    - "Rémond-Tiedrez"
+    - "Valderas-Jaramillo"
+    - "Amores"
+    - "Rueda-Cantuche"
+  year: 2019
+  reference_year: 2010
+  journal: "EURONA — Eurostat Review on National Accounts and Macroeconomic Indicators"
+  doi: null
+
+geography:
+  analysis_entities:
+    - {code: AT, name: Austria, type: eu_member}
+    - {code: BE, name: Belgium, type: eu_member}
+    - {code: BG, name: Bulgaria, type: eu_member}
+    - {code: CY, name: Cyprus, type: eu_member}
+    - {code: CZ, name: Czech Republic, type: eu_member}
+    - {code: DE, name: Germany, type: eu_member}
+    - {code: DK, name: Denmark, type: eu_member}
+    - {code: EE, name: Estonia, type: eu_member}
+    - {code: EL, name: Greece, type: eu_member}
+    - {code: ES, name: Spain, type: eu_member}
+    - {code: FI, name: Finland, type: eu_member}
+    - {code: FR, name: France, type: eu_member}
+    - {code: HR, name: Croatia, type: eu_member}
+    - {code: HU, name: Hungary, type: eu_member}
+    - {code: IE, name: Ireland, type: eu_member}
+    - {code: IT, name: Italy, type: eu_member}
+    - {code: LT, name: Lithuania, type: eu_member}
+    - {code: LU, name: Luxembourg, type: eu_member}
+    - {code: LV, name: Latvia, type: eu_member}
+    - {code: MT, name: Malta, type: eu_member}
+    - {code: NL, name: Netherlands, type: eu_member}
+    - {code: PL, name: Poland, type: eu_member}
+    - {code: PT, name: Portugal, type: eu_member}
+    - {code: RO, name: Romania, type: eu_member}
+    - {code: SE, name: Sweden, type: eu_member}
+    - {code: SI, name: Slovenia, type: eu_member}
+    - {code: SK, name: Slovakia, type: eu_member}
+    - {code: UK, name: United Kingdom, type: eu_member}
+  external_entities:
+    - {code: US, name: "United States", type: non_member}
+    - {code: WRL_REST, name: "Rest of World", type: rest_of_world}
+
+classification:
+  system: CPA_2008
+  n_industries: 64
+  industry_list:
+    - {index: 1,  code: "CPA_A01", label: "Products of agriculture, hunting and related services"}
+    - {index: 2,  code: "CPA_A02", label: "Products of forestry, logging and related services"}
+    - {index: 3,  code: "CPA_A03", label: "Fish and other fishing products; aquaculture products"}
+    - {index: 4,  code: "CPA_B",   label: "Mining and quarrying"}
+    - {index: 5,  code: "CPA_C10-C12", label: "Food products, beverages and tobacco products"}
+    - {index: 6,  code: "CPA_C13-C15", label: "Textiles, wearing apparel and leather products"}
+    - {index: 7,  code: "CPA_C16", label: "Wood and products of wood and cork"}
+    - {index: 8,  code: "CPA_C17", label: "Paper and paper products"}
+    - {index: 9,  code: "CPA_C18", label: "Printing and recording services"}
+    - {index: 10, code: "CPA_C19", label: "Coke and refined petroleum products"}
+    - {index: 11, code: "CPA_C20", label: "Chemicals and chemical products"}
+    - {index: 12, code: "CPA_C21", label: "Basic pharmaceutical products and pharmaceutical preparations"}
+    - {index: 13, code: "CPA_C22", label: "Rubber and plastic products"}
+    - {index: 14, code: "CPA_C23", label: "Other non-metallic mineral products"}
+    - {index: 15, code: "CPA_C24", label: "Basic metals"}
+    - {index: 16, code: "CPA_C25", label: "Fabricated metal products, except machinery and equipment"}
+    - {index: 17, code: "CPA_C26", label: "Computer, electronic and optical products"}
+    - {index: 18, code: "CPA_C27", label: "Electrical equipment"}
+    - {index: 19, code: "CPA_C28", label: "Machinery and equipment n.e.c."}
+    - {index: 20, code: "CPA_C29", label: "Motor vehicles, trailers and semi-trailers"}
+    - {index: 21, code: "CPA_C30", label: "Other transport equipment"}
+    - {index: 22, code: "CPA_C31_C32", label: "Furniture; other manufactured goods"}
+    - {index: 23, code: "CPA_C33", label: "Repair and installation services of machinery and equipment"}
+    - {index: 24, code: "CPA_D35", label: "Electricity, gas, steam and air conditioning"}
+    - {index: 25, code: "CPA_E36", label: "Natural water; water treatment and supply services"}
+    - {index: 26, code: "CPA_E37-E39", label: "Sewerage; waste collection, treatment and disposal; remediation"}
+    - {index: 27, code: "CPA_F",   label: "Constructions and construction works"}
+    - {index: 28, code: "CPA_G45", label: "Wholesale and retail trade and repair of motor vehicles"}
+    - {index: 29, code: "CPA_G46", label: "Wholesale trade services, except of motor vehicles"}
+    - {index: 30, code: "CPA_G47", label: "Retail trade services, except of motor vehicles"}
+    - {index: 31, code: "CPA_H49", label: "Land transport services and transport via pipelines"}
+    - {index: 32, code: "CPA_H50", label: "Water transport services"}
+    - {index: 33, code: "CPA_H51", label: "Air transport services"}
+    - {index: 34, code: "CPA_H52", label: "Warehousing and support services for transportation"}
+    - {index: 35, code: "CPA_H53", label: "Postal and courier services"}
+    - {index: 36, code: "CPA_I",   label: "Accommodation and food services"}
+    - {index: 37, code: "CPA_J58", label: "Publishing services"}
+    - {index: 38, code: "CPA_J59_J60", label: "Motion picture, video, TV programme production; broadcasting"}
+    - {index: 39, code: "CPA_J61", label: "Telecommunications services"}
+    - {index: 40, code: "CPA_J62_J63", label: "Computer programming, consultancy and information services"}
+    - {index: 41, code: "CPA_K64", label: "Financial services, except insurance and pension funding"}
+    - {index: 42, code: "CPA_K65", label: "Insurance, reinsurance and pension funding services"}
+    - {index: 43, code: "CPA_K66", label: "Services auxiliary to financial services and insurance"}
+    - {index: 44, code: "CPA_L68", label: "Real estate services"}
+    - {index: 45, code: "CPA_M69_M70", label: "Legal and accounting services; head offices; management consulting"}
+    - {index: 46, code: "CPA_M71", label: "Architectural and engineering services; technical testing"}
+    - {index: 47, code: "CPA_M72", label: "Scientific research and development services"}
+    - {index: 48, code: "CPA_M73", label: "Advertising and market research services"}
+    - {index: 49, code: "CPA_M74_M75", label: "Other professional, scientific and technical services"}
+    - {index: 50, code: "CPA_N77", label: "Rental and leasing services"}
+    - {index: 51, code: "CPA_N78", label: "Employment services"}
+    - {index: 52, code: "CPA_N79", label: "Travel agency, tour operator and other reservation services"}
+    - {index: 53, code: "CPA_N80-N82", label: "Security and investigation; services to buildings; business support"}
+    - {index: 54, code: "CPA_O84", label: "Public administration and defence; compulsory social security"}
+    - {index: 55, code: "CPA_P85", label: "Education services"}
+    - {index: 56, code: "CPA_Q86", label: "Human health services"}
+    - {index: 57, code: "CPA_Q87_Q88", label: "Residential care services and social work services"}
+    - {index: 58, code: "CPA_R90-R92", label: "Creative, arts and entertainment; libraries, museums; gambling"}
+    - {index: 59, code: "CPA_R93", label: "Sports services and amusement and recreation services"}
+    - {index: 60, code: "CPA_S94", label: "Services furnished by membership organisations"}
+    - {index: 61, code: "CPA_S95", label: "Repair services of computers and personal and household goods"}
+    - {index: 62, code: "CPA_S96", label: "Other personal services"}
+    - {index: 63, code: "CPA_T", label: "Services of households as employers; undifferentiated goods and services"}
+    - {index: 64, code: "CPA_U", label: "Services provided by extraterritorial organisations and bodies"}
+  aggregations:
+    ten_sector:
+      A:   [1, 2, 3]
+      B-E: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26]
+      F:   [27]
+      G-I: [28, 29, 30, 31, 32, 33, 34, 35, 36]
+      J:   [37, 38, 39, 40]
+      K:   [41, 42, 43]
+      L:   [44]
+      M-N: [45, 46, 47, 48, 49, 50, 51, 52, 53]
+      O-Q: [54, 55, 56, 57]
+      R-U: [58, 59, 60, 61, 62, 63, 64]
+
+data_sources:
+  io_table:
+    type: figaro_iciot
+    eurostat_code: naio_10_fcp_ip1
+    table_variant: product_by_product
+    unit: MIO_EUR
+    url: "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/naio_10_fcp_ip1"
+    notes: >
+      Paper uses industry-by-industry IC-IOT (not publicly available).
+      This pipeline uses product-by-product as proxy. Results will differ — documented in limitations.
+      50 countries in full dataset (EU-28 + NO/CH + 20 non-EU + WRL_REST), years 2010-2013.
+    api_quirks:
+      - "Must query one c_orig at a time — full table is too large"
+      - "Dimensions: c_orig, c_dest, prd_ava (row product), prd_use (col product), unit=MIO_EUR, time"
+      - "64 CPA product codes + 6 value-added rows in prd_ava; 64 CPA + 5 final-demand codes in prd_use"
+  satellite_account:
+    type: employment
+    eurostat_code: nama_10_a64_e
+    measure: EMP_DC
+    unit: THS_PER
+    url: "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/nama_10_a64_e"
+    filters:
+      na_item: EMP_DC
+      unit: THS_PER
+    api_quirks:
+      - "The nace_r2 filter silently returns 0 rows — always download all NACE codes and post-filter in Python"
+      - "Returns ~94 NACE codes per country (aggregates + leaves); filter to leaf codes only"
+      - "Query one geo at a time"
+    notes: "Persons employed (EMP_DC) in thousands"
+
+methodology:
+  leontief_system: eu_only
+  export_definition: arto_2015
+  export_definition_detail: |
+    The EU-28 Leontief inverse is built from intra-EU intermediate flows only.
+    The export vector e contains:
+    - All EU→non-EU flows (intermediate + final demand)
+    - Intra-EU final demand flows (treated as exogenous)
+    This avoids double-counting intra-EU intermediate trade.
+    Reference: Arto et al. (2015), "Global value chains and the EU industry".
+  satellite_coefficient: employment_per_output
+  notes:
+    - "Matrix dimensions: 28 EU countries × 64 NACE industries = 1,792"
+    - "US and RoW are in the IC-IOT system but excluded from the EU Leontief sub-matrix"
+
+decompositions:
+  - name: domestic_spillover
+    description: "Employment in country r supported by country s's exports, decomposed into domestic (r=s) and spillover (r≠s)"
+    formula: "em[r,s] = d^r' · L^{rs} · e^s"
+  - name: direct_indirect
+    description: "Direct effect = employment without multiplier; indirect = total domestic minus direct"
+    formula: "Direct: d_i^r · e_i^r; Indirect: d^r' · L^{rr} · e^r - d^r' · e^r"
+
+outputs:
+  tables:
+    - id: table_1
+      title: "Employment and exports to non-member countries by EU member state (2010)"
+      columns: [country, total_employment_THS, exports_mio_eur]
+      source_data: [employment_vector, export_vector]
+      sort: null
+    - id: table_3
+      title: "Employment supported by exports to non-member countries, ranked by spillover share"
+      columns: [country, total_by_country_THS, domestic_effect_THS, spillover_generated_THS, domestic_share_pct, spillover_share_pct]
+      source_data: [country_decomposition]
+      sort: {by: spillover_share_pct, order: ascending}
+    - id: table_4
+      title: "Employment by industry of employment and product of export (10-sector, thousands)"
+      type: matrix
+      source_data: [industry_table4]
+      sort: null
+    - id: annex_c
+      title: "Employment in EU member states supported by exports of each member state (28×28 matrix)"
+      type: matrix
+      source_data: [annex_c_matrix]
+      sort: null
+  figures:
+    - id: figure_1
+      title: "Employment supported by EU exports to non-member countries (thousand persons, 2010)"
+      type: grouped_bar
+      series:
+        - {name: total_in_country_THS, label: "Employment IN member state supported by all EU exports"}
+        - {name: total_by_country_THS, label: "Total employment supported BY member state exports"}
+      sort: {by: total_by_country_THS, order: descending}
+      source_data: [country_decomposition]
+    - id: figure_2
+      title: "Employment supported by exports as % of total employment (2010)"
+      type: stacked_bar
+      series:
+        - {name: domestic_share_pct, label: "Domestic"}
+        - {name: spillover_share_pct, label: "Spillover generated"}
+      overlay:
+        - {name: export_emp_share_pct, label: "Total export employment share", marker: "diamond"}
+      sort: {by: export_emp_share_pct, order: descending}
+      source_data: [country_decomposition]
+    - id: figure_3
+      title: "Employment by product sector (% of total employment supported, domestic vs spillover)"
+      type: stacked_bar
+      series:
+        - {name: domestic_THS, label: "Domestic"}
+        - {name: spillover_THS, label: "Spillover"}
+      sort: null
+      groups: ten_sector
+      source_data: [industry_figure3]
+
+benchmarks:
+  tolerances:
+    warning_pct: 10
+    error_pct: 25
+  values:
+    - {name: "EU-28 total employment", expected: 225677, unit: thousands}
+    - {name: "Total export-supported employment", expected: 25597, unit: thousands}
+    - {name: "Germany jobs in Germany (domestic)", expected: 5700, unit: thousands, approximate: true}
+    - {name: "Germany export-supported total (by Germany)", expected: 6056, unit: thousands}
+    - {name: "Luxembourg spillover share", expected: 46.7, unit: percent}
+    - {name: "Romania spillover share", expected: 4.5, unit: percent}
+    - {name: "Industry B-E total employment", expected: 9889, unit: thousands}
+  notes:
+    - "Using product-by-product tables; paper uses industry-by-industry. Expect systematic differences."
+    - "Employment data vintage may differ from paper's vintage."
+    - "LU and MT may have missing confidential employment data."
+
+limitations:
+  - "Product-by-product vs industry-by-industry IC-IOT (paper footnote 6) — public data only provides p×p"
+  - "Employment data vintage differences between paper and publicly available Eurostat data"
+  - "Upward bias from uniform employment coefficients within each country-industry cell (paper footnote 5)"
+  - "Missing non-public ESA 2010 imputations used in the original paper"
+  - "LU and MT: missing confidential employment data in Eurostat; zero-filled, causing underestimation"

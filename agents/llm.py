@@ -1,0 +1,99 @@
+"""
+LLM provider abstraction — supports Anthropic (Claude) and OpenAI (GPT).
+Usage:
+    llm = get_llm("reviewer", config)
+    llm_with_tools = llm.bind_tools(tools)
+"""
+import os
+from enum import Enum
+from langchain_core.language_models.chat_models import BaseChatModel
+
+
+class LLMProvider(Enum):
+    ANTHROPIC_OPUS = "claude-opus-4-20250514"
+    ANTHROPIC_SONNET = "claude-sonnet-4-20250514"
+    OPENAI_GPT4O = "gpt-4o"
+    OPENAI_GPT4O_MINI = "gpt-4o-mini"
+
+
+# Default routing — mirrors config.yaml but used as fallback when config is absent
+DEFAULT_ROUTING: dict[str, str] = {
+    "paper_analyst":   "anthropic/claude-opus-4-20250514",
+    "data_acquirer":   "openai/gpt-4o-mini",
+    "data_preparer":   "anthropic/claude-sonnet-4-20250514",
+    "output_producer": "openai/gpt-4o-mini",
+    "reviewer":        "anthropic/claude-sonnet-4-20250514",
+}
+
+DEFAULT_FALLBACK = "anthropic/claude-sonnet-4-20250514"
+
+
+def get_llm(agent_name: str, config: dict) -> BaseChatModel:
+    """
+    Instantiate the correct LangChain chat model for the given agent,
+    reading routing from config["llm"]["routing"]. Falls back gracefully
+    if the preferred provider's API key is missing.
+    """
+    routing = config.get("llm", {}).get("routing", DEFAULT_ROUTING)
+    fallback_str = config.get("llm", {}).get("fallback", DEFAULT_FALLBACK)
+
+    model_str = routing.get(agent_name, fallback_str)
+
+    providers_cfg = config.get("llm", {}).get("providers", {})
+    anthropic_key_env = providers_cfg.get("anthropic", {}).get("api_key_env", "ANTHROPIC_API_KEY")
+    openai_key_env = providers_cfg.get("openai", {}).get("api_key_env", "OPENAI_API_KEY")
+
+    provider, model_id = _parse_model_str(model_str)
+
+    if provider == "anthropic":
+        api_key = os.environ.get(anthropic_key_env)
+        if not api_key:
+            # Try fallback
+            fallback_provider, fallback_model = _parse_model_str(fallback_str)
+            if fallback_provider == "openai":
+                openai_key = os.environ.get(openai_key_env)
+                if openai_key:
+                    return _make_openai(fallback_model, openai_key)
+            raise EnvironmentError(
+                f"ANTHROPIC_API_KEY (env var: {anthropic_key_env}) not set. "
+                f"Set it or add OPENAI_API_KEY as fallback."
+            )
+        return _make_anthropic(model_id, api_key)
+
+    elif provider == "openai":
+        api_key = os.environ.get(openai_key_env)
+        if not api_key:
+            # Try Anthropic fallback
+            anthropic_key = os.environ.get(anthropic_key_env)
+            if anthropic_key:
+                fallback_provider, fallback_model = _parse_model_str(fallback_str)
+                if fallback_provider == "anthropic":
+                    return _make_anthropic(fallback_model, anthropic_key)
+            raise EnvironmentError(
+                f"OPENAI_API_KEY (env var: {openai_key_env}) not set."
+            )
+        return _make_openai(model_id, api_key)
+
+    else:
+        raise ValueError(f"Unknown provider '{provider}' in model string '{model_str}'")
+
+
+def _parse_model_str(model_str: str) -> tuple[str, str]:
+    """Parse 'anthropic/claude-opus-4-20250514' into ('anthropic', 'claude-opus-4-20250514')."""
+    if "/" in model_str:
+        provider, model_id = model_str.split("/", 1)
+        return provider, model_id
+    # Guess from model name
+    if model_str.startswith("claude"):
+        return "anthropic", model_str
+    return "openai", model_str
+
+
+def _make_anthropic(model_id: str, api_key: str) -> BaseChatModel:
+    from langchain_anthropic import ChatAnthropic
+    return ChatAnthropic(model=model_id, api_key=api_key, max_tokens=8192)
+
+
+def _make_openai(model_id: str, api_key: str) -> BaseChatModel:
+    from langchain_openai import ChatOpenAI
+    return ChatOpenAI(model=model_id, api_key=api_key)

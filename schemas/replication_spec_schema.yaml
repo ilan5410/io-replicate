@@ -1,0 +1,259 @@
+$schema: "http://json-schema.org/draft-07/schema#"
+title: ReplicationSpec
+description: Structured specification for replicating an Input-Output economics paper
+type: object
+required:
+  - paper
+  - geography
+  - classification
+  - data_sources
+  - methodology
+  - decompositions
+  - outputs
+  - benchmarks
+  - limitations
+
+properties:
+
+  paper:
+    type: object
+    required: [title, authors, year, reference_year]
+    properties:
+      title:
+        type: string
+      authors:
+        type: array
+        items: {type: string}
+        minItems: 1
+      year:
+        type: integer
+        minimum: 1990
+      reference_year:
+        type: integer
+        minimum: 1990
+      journal:
+        type: string
+      doi:
+        type: string
+
+  geography:
+    type: object
+    required: [analysis_entities, external_entities]
+    properties:
+      analysis_entities:
+        type: array
+        description: Countries/regions INSIDE the Leontief system
+        items:
+          type: object
+          required: [code, name, type]
+          properties:
+            code: {type: string}
+            name: {type: string}
+            type:
+              type: string
+              enum: [eu_member, non_eu_member, region, aggregate]
+        minItems: 1
+      external_entities:
+        type: array
+        description: Countries/regions OUTSIDE the Leontief system (rows in Z but excluded from L)
+        items:
+          type: object
+          required: [code, name, type]
+          properties:
+            code: {type: string}
+            name: {type: string}
+            type:
+              type: string
+              enum: [non_member, rest_of_world, aggregate]
+
+  classification:
+    type: object
+    required: [system, n_industries, industry_list]
+    properties:
+      system:
+        type: string
+        description: "e.g. CPA_2008, NACE_Rev2, ISIC_Rev4, BEA_IO"
+      n_industries:
+        type: integer
+        minimum: 1
+      industry_list:
+        type: array
+        items:
+          type: object
+          required: [index, code, label]
+          properties:
+            index: {type: integer, minimum: 1}
+            code: {type: string}
+            label: {type: string}
+      aggregations:
+        type: object
+        description: Named aggregation schemes (e.g. ten_sector)
+        additionalProperties:
+          type: object
+          description: sector_name -> list of 1-based industry indices
+          additionalProperties:
+            type: array
+            items: {type: integer}
+
+  data_sources:
+    type: object
+    required: [io_table, satellite_account]
+    properties:
+      io_table:
+        type: object
+        required: [type]
+        properties:
+          type:
+            type: string
+            description: "e.g. figaro_iciot, wiod, oecd_icio, exiobase, national_sut"
+          eurostat_code: {type: string}
+          wiod_version: {type: string}
+          oecd_edition: {type: string}
+          table_variant: {type: string}
+          unit: {type: string}
+          url: {type: string}
+          notes: {type: string}
+          api_quirks:
+            type: array
+            items: {type: string}
+      satellite_account:
+        type: object
+        required: [type]
+        properties:
+          type:
+            type: string
+            description: "e.g. employment, energy, co2, water"
+          eurostat_code: {type: string}
+          measure: {type: string}
+          unit: {type: string}
+          filters:
+            type: object
+            additionalProperties: {type: string}
+          api_quirks:
+            type: array
+            items: {type: string}
+          notes: {type: string}
+
+  methodology:
+    type: object
+    required: [leontief_system, export_definition]
+    properties:
+      leontief_system:
+        type: string
+        description: "eu_only | full_world | custom"
+      export_definition:
+        type: string
+        description: "arto_2015 | standard | custom"
+      export_definition_detail:
+        type: string
+      satellite_coefficient:
+        type: string
+        description: "e.g. employment_per_output"
+      notes:
+        type: array
+        items: {type: string}
+
+  decompositions:
+    type: array
+    items:
+      type: object
+      required: [name, description, formula]
+      properties:
+        name: {type: string}
+        description: {type: string}
+        formula: {type: string}
+    minItems: 1
+
+  outputs:
+    type: object
+    required: [tables, figures]
+    properties:
+      tables:
+        type: array
+        items:
+          type: object
+          required: [id, title, source_data]
+          properties:
+            id: {type: string}
+            title: {type: string}
+            columns:
+              type: array
+              items: {type: string}
+            source_data:
+              type: array
+              items: {type: string}
+            sort:
+              oneOf:
+                - type: "null"
+                - type: object
+                  properties:
+                    by: {type: string}
+                    order: {type: string, enum: [ascending, descending]}
+            type:
+              type: string
+              enum: [tabular, matrix]
+      figures:
+        type: array
+        items:
+          type: object
+          required: [id, title, type, source_data]
+          properties:
+            id: {type: string}
+            title: {type: string}
+            type:
+              type: string
+              enum: [grouped_bar, stacked_bar, line, scatter, heatmap]
+            series:
+              type: array
+              items:
+                type: object
+                properties:
+                  name: {type: string}
+                  label: {type: string}
+            overlay:
+              type: array
+              items:
+                type: object
+                properties:
+                  name: {type: string}
+                  label: {type: string}
+                  marker: {type: string}
+            sort:
+              oneOf:
+                - type: "null"
+                - type: object
+                  properties:
+                    by: {type: string}
+                    order: {type: string, enum: [ascending, descending]}
+            groups: {type: string}
+            source_data:
+              type: array
+              items: {type: string}
+
+  benchmarks:
+    type: object
+    required: [tolerances, values]
+    properties:
+      tolerances:
+        type: object
+        required: [warning_pct, error_pct]
+        properties:
+          warning_pct: {type: number, minimum: 0}
+          error_pct: {type: number, minimum: 0}
+      values:
+        type: array
+        items:
+          type: object
+          required: [name, expected, unit]
+          properties:
+            name: {type: string}
+            expected: {type: number}
+            unit: {type: string}
+            approximate: {type: boolean}
+      notes:
+        type: array
+        items: {type: string}
+
+  limitations:
+    type: array
+    items: {type: string}

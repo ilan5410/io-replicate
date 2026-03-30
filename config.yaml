@@ -1,0 +1,18 @@
+llm:
+  providers:
+    anthropic:
+      api_key_env: ANTHROPIC_API_KEY
+    openai:
+      api_key_env: OPENAI_API_KEY
+  routing:
+    paper_analyst: anthropic/claude-opus-4-20250514
+    data_acquirer: openai/gpt-4o-mini
+    data_preparer: anthropic/claude-sonnet-4-20250514
+    output_producer: openai/gpt-4o-mini
+    reviewer: anthropic/claude-sonnet-4-20250514
+  fallback: anthropic/claude-sonnet-4-20250514
+
+pipeline:
+  max_retries: 3
+  checkpoint_db: runs/checkpoints.sqlite
+  runs_dir: runs/
