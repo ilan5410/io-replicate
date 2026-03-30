@@ -6,7 +6,10 @@ Usage:
 """
 import os
 from enum import Enum
-from langchain_core.language_models.chat_models import BaseChatModel
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from langchain_core.language_models.chat_models import BaseChatModel
 
 
 class LLMProvider(Enum):
@@ -28,7 +31,7 @@ DEFAULT_ROUTING: dict[str, str] = {
 DEFAULT_FALLBACK = "anthropic/claude-sonnet-4-6"
 
 
-def get_llm(agent_name: str, config: dict) -> BaseChatModel:
+def get_llm(agent_name: str, config: dict):
     """
     Instantiate the correct LangChain chat model for the given agent,
     reading routing from config["llm"]["routing"]. Falls back gracefully

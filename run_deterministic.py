@@ -114,19 +114,33 @@ def main():
         "acquisition_complete": True,
     }
 
+    # Lazy imports so stages 3-4 work without langchain installed
     from nodes.model_builder import model_builder_node
     from nodes.decomposer import decomposer_node
-    from nodes.output_producer import output_producer_node
-    from nodes.reviewer import reviewer_node
 
     stage_fns = {
         3: ("model_builder", model_builder_node),
         4: ("decomposer", decomposer_node),
-        5: ("output_producer", output_producer_node),
-        6: ("reviewer", reviewer_node),
     }
 
+    if args.start_stage <= 5:
+        try:
+            from nodes.output_producer import output_producer_node
+            stage_fns[5] = ("output_producer", output_producer_node)
+        except ImportError as e:
+            log.warning(f"Stage 5 (output_producer) unavailable — install langchain deps: {e}")
+
+    if args.start_stage <= 6:
+        try:
+            from nodes.reviewer import reviewer_node
+            stage_fns[6] = ("reviewer", reviewer_node)
+        except ImportError as e:
+            log.warning(f"Stage 6 (reviewer) unavailable — install langchain deps: {e}")
+
     for stage_num in range(args.start_stage, 7):
+        if stage_num not in stage_fns:
+            log.warning(f"Stage {stage_num} not available — stopping here")
+            break
         name, fn = stage_fns[stage_num]
         log.info(f"=== Stage {stage_num}: {name} ===")
         updates = fn(state)
