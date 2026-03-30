@@ -4,6 +4,9 @@ data/
 generated_scripts/
 outputs/
 
+# Paper PDFs — user-provided, not versioned
+*.pdf
+
 # Python
 __pycache__/
 *.pyc
