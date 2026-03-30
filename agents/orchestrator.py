@@ -145,41 +145,93 @@ def build_graph(use_checkpointing: bool = True, checkpoint_db: str = None):
     return graph.compile()
 
 
+_NODE_FN_MAP = {
+    "paper_analyst":   paper_analyst_node,
+    "data_acquirer":   data_acquirer_node,
+    "data_preparer":   data_preparer_node,
+    "model_builder":   model_builder_node,
+    "decomposer":      decomposer_node,
+    "output_producer": output_producer_node,
+    "reviewer":        reviewer_node,
+}
+
+_STAGE_TO_NODE = {
+    0: "paper_analyst",
+    1: "data_acquirer",
+    2: "data_preparer",
+    3: "model_builder",
+    4: "decomposer",
+    5: "output_producer",
+    6: "reviewer",
+}
+
+# Ordered list of nodes for building partial graphs
+_NODE_ORDER = [
+    "data_acquirer", "data_preparer", "model_builder",
+    "decomposer", "output_producer", "reviewer",
+]
+
+
 def build_graph_from_stage(start_stage: int, only_stage: str = None, **kwargs):
     """
     Build a graph that starts from a specific stage.
-    Useful for resuming after the data is already downloaded.
+    - only_stage: run exactly one named node, then END.
+    - start_stage: build a subgraph from that stage to the end.
+      Stages 0-2 require the full graph (they go through paper_analyst / human_approval).
+      Stages 3-6 build a trimmed graph that skips acquisition/preparation.
     """
-    stage_nodes = {
-        0: "paper_analyst",
-        1: "data_acquirer",
-        2: "data_preparer",
-        3: "model_builder",
-        4: "decomposer",
-        5: "output_producer",
-        6: "reviewer",
-    }
-
     if only_stage:
-        # Single-node graph
+        if only_stage not in _NODE_FN_MAP:
+            raise ValueError(f"Unknown stage: '{only_stage}'. Valid: {list(_NODE_FN_MAP.keys())}")
         graph = StateGraph(PipelineState)
-        node_fn_map = {
-            "paper_analyst": paper_analyst_node,
-            "data_acquirer": data_acquirer_node,
-            "data_preparer": data_preparer_node,
-            "model_builder": model_builder_node,
-            "decomposer": decomposer_node,
-            "output_producer": output_producer_node,
-            "reviewer": reviewer_node,
-        }
-        if only_stage not in node_fn_map:
-            raise ValueError(f"Unknown stage: {only_stage}. Valid: {list(node_fn_map.keys())}")
-        graph.add_node(only_stage, node_fn_map[only_stage])
+        graph.add_node(only_stage, _NODE_FN_MAP[only_stage])
         graph.set_entry_point(only_stage)
         graph.add_edge(only_stage, END)
         return graph.compile()
 
-    # Standard graph but with entry point at start_stage
-    # (LangGraph doesn't support arbitrary entry points natively;
-    #  we compile the full graph and pass pre-populated state)
-    return build_graph(**kwargs)
+    if start_stage not in _STAGE_TO_NODE:
+        raise ValueError(f"start_stage must be 0-6, got {start_stage}")
+
+    start_node = _STAGE_TO_NODE[start_stage]
+
+    # For stages 0-2, use the full graph — they need the setup nodes
+    if start_stage <= 2:
+        return build_graph(**kwargs)
+
+    # For stages 3-6, build a trimmed graph starting at the requested node
+    # (data is assumed to be already prepared in the run_dir)
+    nodes_to_include = _NODE_ORDER[_NODE_ORDER.index(start_node):]
+
+    graph = StateGraph(PipelineState)
+    for node_name in nodes_to_include:
+        graph.add_node(node_name, _NODE_FN_MAP[node_name])
+
+    graph.set_entry_point(nodes_to_include[0])
+
+    for i in range(len(nodes_to_include) - 1):
+        curr = nodes_to_include[i]
+        nxt = nodes_to_include[i + 1]
+        # Keep the validation gate for data_preparer if it's in the subgraph
+        if curr == "data_preparer":
+            graph.add_node("human_escalation", human_escalation_node)
+            graph.add_conditional_edges("data_preparer", route_after_prep_validator)
+        else:
+            graph.add_edge(curr, nxt)
+
+    # Keep review gate
+    last = nodes_to_include[-1]
+    if last == "reviewer":
+        graph.add_node("human_escalation", human_escalation_node)
+        graph.add_conditional_edges("reviewer", route_after_reviewer)
+    else:
+        graph.add_edge(last, END)
+
+    checkpoint_db = kwargs.get("checkpoint_db")
+    if checkpoint_db:
+        try:
+            from langgraph.checkpoint.sqlite import SqliteSaver
+            Path(checkpoint_db).parent.mkdir(parents=True, exist_ok=True)
+            return graph.compile(checkpointer=SqliteSaver.from_conn_string(checkpoint_db))
+        except ImportError:
+            pass
+    return graph.compile()

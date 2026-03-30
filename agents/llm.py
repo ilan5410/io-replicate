@@ -10,22 +10,22 @@ from langchain_core.language_models.chat_models import BaseChatModel
 
 
 class LLMProvider(Enum):
-    ANTHROPIC_OPUS = "claude-opus-4-20250514"
-    ANTHROPIC_SONNET = "claude-sonnet-4-20250514"
+    ANTHROPIC_OPUS = "claude-opus-4-6"
+    ANTHROPIC_SONNET = "claude-sonnet-4-6"
     OPENAI_GPT4O = "gpt-4o"
     OPENAI_GPT4O_MINI = "gpt-4o-mini"
 
 
 # Default routing — mirrors config.yaml but used as fallback when config is absent
 DEFAULT_ROUTING: dict[str, str] = {
-    "paper_analyst":   "anthropic/claude-opus-4-20250514",
+    "paper_analyst":   "anthropic/claude-opus-4-6",
     "data_acquirer":   "openai/gpt-4o-mini",
-    "data_preparer":   "anthropic/claude-sonnet-4-20250514",
+    "data_preparer":   "anthropic/claude-sonnet-4-6",
     "output_producer": "openai/gpt-4o-mini",
-    "reviewer":        "anthropic/claude-sonnet-4-20250514",
+    "reviewer":        "anthropic/claude-sonnet-4-6",
 }
 
-DEFAULT_FALLBACK = "anthropic/claude-sonnet-4-20250514"
+DEFAULT_FALLBACK = "anthropic/claude-sonnet-4-6"
 
 
 def get_llm(agent_name: str, config: dict) -> BaseChatModel:

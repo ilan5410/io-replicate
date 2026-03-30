@@ -5,12 +5,12 @@ llm:
     openai:
       api_key_env: OPENAI_API_KEY
   routing:
-    paper_analyst: anthropic/claude-opus-4-20250514
+    paper_analyst: anthropic/claude-opus-4-6
     data_acquirer: openai/gpt-4o-mini
-    data_preparer: anthropic/claude-sonnet-4-20250514
+    data_preparer: anthropic/claude-sonnet-4-6
     output_producer: openai/gpt-4o-mini
-    reviewer: anthropic/claude-sonnet-4-20250514
-  fallback: anthropic/claude-sonnet-4-20250514
+    reviewer: anthropic/claude-sonnet-4-6
+  fallback: anthropic/claude-sonnet-4-6
 
 pipeline:
   max_retries: 3
