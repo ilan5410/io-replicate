@@ -49,12 +49,17 @@ def read_file(path: str) -> str:
 def write_file(path: str, content: str) -> str:
     """
     Write content to a file, creating parent directories as needed.
+    Restricted to the project directory or /tmp.
 
     Args:
         path: Absolute or relative path to write to.
         content: The text content to write.
     """
-    p = Path(path)
+    import os as _os
+    p = Path(path).resolve()
+    cwd = Path(_os.getcwd()).resolve()
+    if not (str(p).startswith(str(cwd)) or str(p).startswith("/tmp")):
+        return f"ERROR: write_file is restricted to the project directory. Cannot write to {path}"
     try:
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(content)

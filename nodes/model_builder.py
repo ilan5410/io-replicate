@@ -84,6 +84,8 @@ def _build_leontief_inverse(A: np.ndarray) -> np.ndarray:
     log.info(f"Computing Leontief inverse ({N}×{N})...")
     t0 = time.time()
     I_minus_A = np.eye(N) - A
+    # Full inverse is needed (not just solve) because L is reused in decomposer
+    # for country-level and industry-level decomposition with different e vectors
     L = np.linalg.inv(I_minus_A)
     log.info(f"Leontief inverse computed in {time.time()-t0:.1f}s")
     return L

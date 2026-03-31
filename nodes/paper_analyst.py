@@ -53,7 +53,16 @@ def paper_analyst_node(state: PipelineState) -> dict:
     spec_yaml = _call_opus(prompt, config)
 
     # 5. Parse and validate
-    spec = yaml.safe_load(spec_yaml)
+    try:
+        spec = yaml.safe_load(spec_yaml)
+    except yaml.YAMLError as e:
+        log.error(f"LLM produced invalid YAML. First 500 chars:\n{spec_yaml[:500]}")
+        raw_path = run_dir / "replication_spec_raw.txt"
+        raw_path.write_text(spec_yaml)
+        raise ValueError(
+            f"Paper Analyst produced invalid YAML. Raw output saved to {raw_path}. "
+            f"YAML error: {e}"
+        ) from e
     is_valid, errors = validate_spec(spec)
     if not is_valid:
         log.warning(f"Spec has validation issues (will still proceed): {errors}")
@@ -117,8 +126,12 @@ Read the paper below and produce a complete `replication_spec.yaml`. Output ONLY
 ## Output (raw YAML only):"""
 
 
+_anthropic_client = None
+
+
 def _call_opus(prompt: str, config: dict) -> str:
     """Make a single Anthropic API call and return the YAML string."""
+    global _anthropic_client
     import anthropic
 
     providers_cfg = config.get("llm", {}).get("providers", {})
@@ -132,8 +145,9 @@ def _call_opus(prompt: str, config: dict) -> str:
     if "/" in model:
         model = model.split("/", 1)[1]
 
-    client = anthropic.Anthropic(api_key=api_key)
-    response = client.messages.create(
+    if _anthropic_client is None:
+        _anthropic_client = anthropic.Anthropic(api_key=api_key)
+    response = _anthropic_client.messages.create(
         model=model,
         max_tokens=8000,
         messages=[{"role": "user", "content": prompt}],

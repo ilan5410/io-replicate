@@ -5,8 +5,7 @@ Validates pipeline results against spec benchmarks; produces review_report.md.
 import logging
 from pathlib import Path
 
-from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
-
+from agents.agent_runner import run_agent_loop
 from agents.llm import get_llm
 from agents.prompts import REVIEWER_SYSTEM_PROMPT
 from agents.state import PipelineState
@@ -69,7 +68,12 @@ def reviewer_node(state: PipelineState) -> dict:
                 result = f"ERROR: Unknown tool '{tool_name}'"
             else:
                 result = tool_map[tool_name].invoke(tool_call["args"])
-            messages.append(ToolMessage(content=str(result), tool_call_id=tool_id))
+            content = str(result)
+            if len(content) > 4000:
+                content = content[:4000] + f"\n[TRUNCATED — {len(str(result)):,} chars total]"
+            messages.append(ToolMessage(content=content, tool_call_id=tool_id))
+    else:
+        log.warning(f"Reviewer hit MAX_ITERATIONS ({MAX_ITERATIONS}) without finishing — results may be incomplete")
 
     # Parse review results from the written report
     review_passed = False
@@ -78,12 +82,16 @@ def reviewer_node(state: PipelineState) -> dict:
 
     if report_path.exists():
         report_text = report_path.read_text()
-        # Simple heuristic: parse FAIL/WARN counts from the summary line
         import re
-        fail_match = re.search(r"FAIL[:\s]+(\d+)", report_text)
-        warn_match = re.search(r"WARN[:\s]+(\d+)", report_text)
-        n_fails = int(fail_match.group(1)) if fail_match else 0
-        n_warns = int(warn_match.group(1)) if warn_match else 0
+        # Match specific summary line: "PASS: X | WARN: Y | FAIL: Z"
+        summary_match = re.search(r"PASS:\s*(\d+)\s*\|\s*WARN:\s*(\d+)\s*\|\s*FAIL:\s*(\d+)", report_text)
+        if summary_match:
+            n_fails = int(summary_match.group(3))
+            n_warns = int(summary_match.group(2))
+        else:
+            # Fallback: count PASS/WARN/FAIL markers in benchmark table cells
+            n_fails = len(re.findall(r"\|\s*FAIL\s*\|", report_text))
+            n_warns = len(re.findall(r"\|\s*WARN\s*\|", report_text))
         review_passed = n_fails == 0
         if n_warns > 0:
             review_warnings = [f"{n_warns} warning(s) in review report"]

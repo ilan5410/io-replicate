@@ -34,6 +34,9 @@ env/
 # OS
 .DS_Store
 
+# Databases
+*.sqlite
+
 # Secrets
 .env
 *.env

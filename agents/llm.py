@@ -48,6 +48,9 @@ def get_llm(agent_name: str, config: dict):
 
     provider, model_id = _parse_model_str(model_str)
 
+    import logging as _logging
+    _log = _logging.getLogger("llm")
+
     if provider == "anthropic":
         api_key = os.environ.get(anthropic_key_env)
         if not api_key:
@@ -56,6 +59,10 @@ def get_llm(agent_name: str, config: dict):
             if fallback_provider == "openai":
                 openai_key = os.environ.get(openai_key_env)
                 if openai_key:
+                    _log.warning(
+                        f"Falling back from anthropic/{model_id} to openai/{fallback_model} "
+                        f"(ANTHROPIC_API_KEY not set)"
+                    )
                     return _make_openai(fallback_model, openai_key)
             raise EnvironmentError(
                 f"ANTHROPIC_API_KEY (env var: {anthropic_key_env}) not set. "
@@ -71,6 +78,10 @@ def get_llm(agent_name: str, config: dict):
             if anthropic_key:
                 fallback_provider, fallback_model = _parse_model_str(fallback_str)
                 if fallback_provider == "anthropic":
+                    _log.warning(
+                        f"Falling back from openai/{model_id} to anthropic/{fallback_model} "
+                        f"(OPENAI_API_KEY not set)"
+                    )
                     return _make_anthropic(fallback_model, anthropic_key)
             raise EnvironmentError(
                 f"OPENAI_API_KEY (env var: {openai_key_env}) not set."

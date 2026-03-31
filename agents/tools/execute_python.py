@@ -3,6 +3,7 @@ Tool: execute_python
 Writes a Python script to disk and executes it, capturing stdout/stderr.
 The script is saved under runs/{run_id}/generated_scripts/ for auditability.
 """
+import os
 import subprocess
 import time
 from pathlib import Path
@@ -36,11 +37,18 @@ def make_execute_python_tool(run_dir: str):
         script_path = scripts_dir / script_name
         script_path.write_text(script_content)
 
+        # Strip API keys from subprocess environment so generated scripts can't leak secrets
+        _SECRET_KEYS = {"ANTHROPIC_API_KEY", "OPENAI_API_KEY", "AWS_SECRET_ACCESS_KEY",
+                        "AWS_ACCESS_KEY_ID", "GOOGLE_API_KEY", "HUGGINGFACE_API_KEY"}
+        safe_env = {k: v for k, v in os.environ.items() if k not in _SECRET_KEYS}
+
         result = subprocess.run(
             ["python3", str(script_path)],
             capture_output=True,
             text=True,
             timeout=600,
+            cwd=str(Path(run_dir)),
+            env=safe_env,
         )
 
         success = result.returncode == 0

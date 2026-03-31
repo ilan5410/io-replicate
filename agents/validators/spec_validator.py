@@ -8,11 +8,15 @@ import yaml
 
 
 _SCHEMA_PATH = Path(__file__).parents[2] / "schemas" / "replication_spec_schema.yaml"
+_cached_schema: dict | None = None
 
 
 def load_schema() -> dict:
-    with open(_SCHEMA_PATH) as f:
-        return yaml.safe_load(f)
+    global _cached_schema
+    if _cached_schema is None:
+        with open(_SCHEMA_PATH) as f:
+            _cached_schema = yaml.safe_load(f)
+    return _cached_schema
 
 
 def validate_spec(spec: dict) -> tuple[bool, list[str]]:

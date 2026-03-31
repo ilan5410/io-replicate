@@ -5,8 +5,7 @@ Writes and executes parsing scripts; validator runs after each attempt.
 import logging
 from pathlib import Path
 
-from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
-
+from agents.agent_runner import run_agent_loop
 from agents.llm import get_llm
 from agents.prompts import DATA_PREPARER_SYSTEM_PROMPT
 from agents.state import PipelineState
@@ -30,8 +29,6 @@ def data_preparer_node(state: PipelineState) -> dict:
 
     execute_python = make_execute_python_tool(str(run_dir))
     tools = [execute_python, read_file, write_file, list_files]
-    tool_map = {t.name: t for t in tools}
-
     llm = get_llm("data_preparer", config).bind_tools(tools)
     system_prompt = DATA_PREPARER_SYSTEM_PROMPT.replace("{run_dir}", str(run_dir))
 
@@ -46,7 +43,23 @@ def data_preparer_node(state: PipelineState) -> dict:
     prior_errors = state.get("preparation_errors", [])
     error_context = ""
     if prior_errors:
-        error_context = f"\n\nPrevious attempt failed validation with these errors:\n" + "\n".join(f"- {e}" for e in prior_errors)
+        # Include the most recent generated script so the agent can see what it tried
+        scripts_dir = run_dir / "generated_scripts"
+        prior_script_text = ""
+        if scripts_dir.exists():
+            scripts = sorted(scripts_dir.glob("*.py"), key=lambda p: p.stat().st_mtime)
+            if scripts:
+                prior_script_text = scripts[-1].read_text()[:3000]
+        script_section = (
+            f"\n\nPrevious script you wrote:\n```python\n{prior_script_text}\n```\n"
+            if prior_script_text else ""
+        )
+        error_context = (
+            f"\n\nPrevious attempt FAILED validation with these errors:\n"
+            + "\n".join(f"- {e}" for e in prior_errors)
+            + script_section
+            + "\nFix these errors. Do NOT rewrite from scratch — modify the approach."
+        )
 
     initial_message = (
         f"Parse the raw data into analysis-ready matrices.\n\n"
@@ -57,27 +70,12 @@ def data_preparer_node(state: PipelineState) -> dict:
         f"{error_context}\n"
     )
 
-    messages = [
-        SystemMessage(content=system_prompt),
-        HumanMessage(content=initial_message),
-    ]
-
-    for iteration in range(MAX_AGENT_ITERATIONS):
-        response = llm.invoke(messages)
-        messages.append(response)
-
-        if not response.tool_calls:
-            log.info(f"Data Preparer agent finished after {iteration+1} iterations")
-            break
-
-        for tool_call in response.tool_calls:
-            tool_name = tool_call["name"]
-            tool_id = tool_call["id"]
-            if tool_name not in tool_map:
-                result = f"ERROR: Unknown tool '{tool_name}'"
-            else:
-                result = tool_map[tool_name].invoke(tool_call["args"])
-            messages.append(ToolMessage(content=str(result), tool_call_id=tool_id))
+    max_cost = config.get("pipeline", {}).get("max_cost_per_stage", 2.0)
+    run_agent_loop(
+        llm=llm, tools=tools, system_prompt=system_prompt,
+        initial_message=initial_message, max_iterations=MAX_AGENT_ITERATIONS,
+        stage_name="data_preparer", max_cost_usd=max_cost,
+    )
 
     # Build prepared_data_paths
     prepared_data_paths = {
