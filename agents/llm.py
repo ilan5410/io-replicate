@@ -30,6 +30,11 @@ DEFAULT_ROUTING: dict[str, str] = {
 
 DEFAULT_FALLBACK = "anthropic/claude-sonnet-4-6"
 
+# Module-level cache — keyed by (agent_name, config identity) so the same config
+# object always returns the same LLM instance. Using id(config) is safe because
+# config dicts are loaded once at pipeline startup and never mutated.
+_llm_cache: dict[str, object] = {}
+
 
 def get_llm(agent_name: str, config: dict):
     """
@@ -37,6 +42,10 @@ def get_llm(agent_name: str, config: dict):
     reading routing from config["llm"]["routing"]. Falls back gracefully
     if the preferred provider's API key is missing.
     """
+    cache_key = f"{agent_name}:{id(config)}"
+    if cache_key in _llm_cache:
+        return _llm_cache[cache_key]
+
     routing = config.get("llm", {}).get("routing", DEFAULT_ROUTING)
     fallback_str = config.get("llm", {}).get("fallback", DEFAULT_FALLBACK)
 
@@ -45,16 +54,18 @@ def get_llm(agent_name: str, config: dict):
     providers_cfg = config.get("llm", {}).get("providers", {})
     anthropic_key_env = providers_cfg.get("anthropic", {}).get("api_key_env", "ANTHROPIC_API_KEY")
     openai_key_env = providers_cfg.get("openai", {}).get("api_key_env", "OPENAI_API_KEY")
+    temperature = config.get("llm", {}).get("temperatures", {}).get(agent_name)
 
     provider, model_id = _parse_model_str(model_str)
 
     import logging as _logging
     _log = _logging.getLogger("llm")
 
+    llm = None
+
     if provider == "anthropic":
         api_key = os.environ.get(anthropic_key_env)
         if not api_key:
-            # Try fallback
             fallback_provider, fallback_model = _parse_model_str(fallback_str)
             if fallback_provider == "openai":
                 openai_key = os.environ.get(openai_key_env)
@@ -63,17 +74,18 @@ def get_llm(agent_name: str, config: dict):
                         f"Falling back from anthropic/{model_id} to openai/{fallback_model} "
                         f"(ANTHROPIC_API_KEY not set)"
                     )
-                    return _make_openai(fallback_model, openai_key)
-            raise EnvironmentError(
-                f"ANTHROPIC_API_KEY (env var: {anthropic_key_env}) not set. "
-                f"Set it or add OPENAI_API_KEY as fallback."
-            )
-        return _make_anthropic(model_id, api_key)
+                    llm = _make_openai(fallback_model, openai_key, temperature)
+            if llm is None:
+                raise EnvironmentError(
+                    f"ANTHROPIC_API_KEY (env var: {anthropic_key_env}) not set. "
+                    f"Set it or add OPENAI_API_KEY as fallback."
+                )
+        else:
+            llm = _make_anthropic(model_id, api_key, temperature)
 
     elif provider == "openai":
         api_key = os.environ.get(openai_key_env)
         if not api_key:
-            # Try Anthropic fallback
             anthropic_key = os.environ.get(anthropic_key_env)
             if anthropic_key:
                 fallback_provider, fallback_model = _parse_model_str(fallback_str)
@@ -82,14 +94,17 @@ def get_llm(agent_name: str, config: dict):
                         f"Falling back from openai/{model_id} to anthropic/{fallback_model} "
                         f"(OPENAI_API_KEY not set)"
                     )
-                    return _make_anthropic(fallback_model, anthropic_key)
-            raise EnvironmentError(
-                f"OPENAI_API_KEY (env var: {openai_key_env}) not set."
-            )
-        return _make_openai(model_id, api_key)
+                    llm = _make_anthropic(fallback_model, anthropic_key, temperature)
+            if llm is None:
+                raise EnvironmentError(f"OPENAI_API_KEY (env var: {openai_key_env}) not set.")
+        else:
+            llm = _make_openai(model_id, api_key, temperature)
 
     else:
         raise ValueError(f"Unknown provider '{provider}' in model string '{model_str}'")
+
+    _llm_cache[cache_key] = llm
+    return llm
 
 
 def _parse_model_str(model_str: str) -> tuple[str, str]:
@@ -103,11 +118,17 @@ def _parse_model_str(model_str: str) -> tuple[str, str]:
     return "openai", model_str
 
 
-def _make_anthropic(model_id: str, api_key: str) -> BaseChatModel:
+def _make_anthropic(model_id: str, api_key: str, temperature: float | None = None) -> "BaseChatModel":
     from langchain_anthropic import ChatAnthropic
-    return ChatAnthropic(model=model_id, api_key=api_key, max_tokens=8192)
+    kwargs: dict = {"model": model_id, "api_key": api_key, "max_tokens": 8192}
+    if temperature is not None:
+        kwargs["temperature"] = temperature
+    return ChatAnthropic(**kwargs)
 
 
-def _make_openai(model_id: str, api_key: str) -> BaseChatModel:
+def _make_openai(model_id: str, api_key: str, temperature: float | None = None) -> "BaseChatModel":
     from langchain_openai import ChatOpenAI
-    return ChatOpenAI(model=model_id, api_key=api_key)
+    kwargs: dict = {"model": model_id, "api_key": api_key}
+    if temperature is not None:
+        kwargs["temperature"] = temperature
+    return ChatOpenAI(**kwargs)

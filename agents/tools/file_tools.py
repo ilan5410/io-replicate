@@ -25,9 +25,9 @@ def read_file(path: str) -> str:
     if not p.exists():
         return f"ERROR: File not found: {path}"
 
-    # Block reads of known large matrix files
+    # Block reads of known large matrix files (CSV and binary formats)
     name = p.name.lower()
-    blocked = ["z_eu.csv", "l_eu.csv", "a_eu.csv", "em_exports_country_matrix.csv"]
+    blocked = ["z_eu.csv", "l_eu.csv", "a_eu.csv", "l_eu.npy", "a_eu.npy", "em_exports_country_matrix.csv"]
     if any(name == b for b in blocked):
         size_mb = p.stat().st_size / 1_048_576
         return (
@@ -58,7 +58,8 @@ def write_file(path: str, content: str) -> str:
     import os as _os
     p = Path(path).resolve()
     cwd = Path(_os.getcwd()).resolve()
-    if not (str(p).startswith(str(cwd)) or str(p).startswith("/tmp")):
+    tmp = Path("/tmp").resolve()  # resolves /tmp → /private/tmp on macOS
+    if not (str(p).startswith(str(cwd)) or str(p).startswith(str(tmp))):
         return f"ERROR: write_file is restricted to the project directory. Cannot write to {path}"
     try:
         p.parent.mkdir(parents=True, exist_ok=True)

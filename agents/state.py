@@ -4,7 +4,7 @@ PipelineState — shared state for the LangGraph IO Replicator pipeline.
 from typing import TypedDict, Optional
 
 
-class PipelineState(TypedDict):
+class PipelineState(TypedDict, total=False):
     # ── Run metadata ──────────────────────────────────────────────────────────
     run_id: str                    # Timestamp-based unique ID, e.g. "20250330_142301"
     run_dir: str                   # Path to runs/{run_id}/

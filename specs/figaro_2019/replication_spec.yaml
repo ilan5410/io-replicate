@@ -239,13 +239,35 @@ benchmarks:
     warning_pct: 10
     error_pct: 25
   values:
-    - {name: "EU-28 total employment", expected: 225677, unit: thousands}
-    - {name: "Total export-supported employment", expected: 25597, unit: thousands}
-    - {name: "Germany jobs in Germany (domestic)", expected: 5700, unit: thousands, approximate: true}
-    - {name: "Germany export-supported total (by Germany)", expected: 6056, unit: thousands}
-    - {name: "Luxembourg spillover share", expected: 46.7, unit: percent}
-    - {name: "Romania spillover share", expected: 4.5, unit: percent}
-    - {name: "Industry B-E total employment", expected: 9889, unit: thousands}
+    - name: "EU-28 total employment"
+      expected: 225677
+      unit: thousands
+      source: {file: country_decomposition, op: sum_column, column: total_employment_THS}
+    - name: "Total export-supported employment"
+      expected: 25597
+      unit: thousands
+      source: {file: country_decomposition, op: sum_column, column: total_by_country_THS}
+    - name: "Germany jobs in Germany (domestic)"
+      expected: 5700
+      unit: thousands
+      approximate: true
+      source: {file: country_decomposition, op: lookup, filter: {country: DE}, column: domestic_effect_THS}
+    - name: "Germany export-supported total (by Germany)"
+      expected: 6056
+      unit: thousands
+      source: {file: country_decomposition, op: lookup, filter: {country: DE}, column: total_by_country_THS}
+    - name: "Luxembourg spillover share"
+      expected: 46.7
+      unit: percent
+      source: {file: country_decomposition, op: lookup, filter: {country: LU}, column: spillover_share_pct}
+    - name: "Romania spillover share"
+      expected: 4.5
+      unit: percent
+      source: {file: country_decomposition, op: lookup, filter: {country: RO}, column: spillover_share_pct}
+    - name: "Industry B-E total employment"
+      expected: 9889
+      unit: thousands
+      source: {file: industry_figure3, op: lookup, filter: {sector: "B-E"}, column: total_employment_THS}
   notes:
     - "Using product-by-product tables; paper uses industry-by-industry. Expect systematic differences."
     - "Employment data vintage may differ from paper's vintage."

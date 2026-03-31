@@ -110,17 +110,18 @@ def _compute_employment_content(
     em_exports_total = d * (L @ e_nonEU)
     log.info(f"Total EU export-supported employment: {em_exports_total.sum():.0f} thousand persons")
 
-    em_country_matrix = np.zeros((N, N), dtype=np.float64)
+    # Build E_mat: column s = country s's export vector (NP × N)
+    # Single matrix multiply replaces 28 sequential matrix-vector products
+    E_mat = np.zeros((N * P, N), dtype=np.float64)
     for s_idx in range(N):
-        e_s = np.zeros(N * P, dtype=np.float64)
-        e_s[s_idx * P:(s_idx + 1) * P] = e_nonEU[s_idx * P:(s_idx + 1) * P]
-        if e_s.sum() == 0:
-            continue
-        Le_s = L @ e_s
-        for r_idx in range(N):
-            r_start = r_idx * P
-            r_end = (r_idx + 1) * P
-            em_country_matrix[r_idx, s_idx] = np.dot(d[r_start:r_end], Le_s[r_start:r_end])
+        E_mat[s_idx * P:(s_idx + 1) * P, s_idx] = e_nonEU[s_idx * P:(s_idx + 1) * P]
+
+    LE = L @ E_mat  # (NP, N)
+
+    # em_country_matrix[r, s] = d[r_block] · LE[r_block, s]
+    D = d.reshape(N, P)                      # (N, P)
+    LE_reshaped = LE.reshape(N, P, N)        # (r_country, r_prod, s_country)
+    em_country_matrix = np.einsum('rp,rps->rs', D, LE_reshaped)
 
     log.info(f"Country matrix total: {em_country_matrix.sum():.0f}")
     return {"em_exports_total": em_exports_total, "em_country_matrix": em_country_matrix}
@@ -145,13 +146,17 @@ def _validate_model(A: np.ndarray, L: np.ndarray) -> dict:
 def _save_outputs(A, L, d, results, model_dir, eu_countries, cpa_codes, row_labels) -> dict:
     paths = {}
 
-    p = model_dir / "A_EU.csv"
-    pd.DataFrame(A, index=row_labels, columns=row_labels).to_csv(p)
+    # Save large matrices as binary .npy — 10x faster I/O, ~4x smaller than CSV
+    p = model_dir / "A_EU.npy"
+    np.save(p, A)
     paths["A_EU"] = str(p)
 
-    p = model_dir / "L_EU.csv"
-    pd.DataFrame(L, index=row_labels, columns=row_labels).to_csv(p)
+    p = model_dir / "L_EU.npy"
+    np.save(p, L)
     paths["L_EU"] = str(p)
+
+    # Keep row labels for downstream reference
+    pd.DataFrame({"label": row_labels}).to_csv(model_dir / "labels.csv", index=False)
 
     p = model_dir / "d_EU.csv"
     pd.DataFrame({"label": row_labels, "d_THS_PER_per_MIO_EUR": d}).to_csv(p, index=False)

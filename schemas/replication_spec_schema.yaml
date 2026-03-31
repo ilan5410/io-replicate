@@ -250,6 +250,24 @@ properties:
             expected: {type: number}
             unit: {type: string}
             approximate: {type: boolean}
+            source:
+              type: object
+              description: >
+                Optional descriptor for deterministic lookup of the actual value
+                from decomposition outputs. When absent, the reviewer LLM verifies
+                this benchmark from the narrative context.
+              required: [file, op, column]
+              properties:
+                file:
+                  type: string
+                  enum: [country_decomposition, industry_table4, industry_figure3]
+                op:
+                  type: string
+                  enum: [sum_column, lookup]
+                column: {type: string}
+                filter:
+                  type: object
+                  additionalProperties: {type: string}
       notes:
         type: array
         items: {type: string}

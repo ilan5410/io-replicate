@@ -135,7 +135,7 @@ def build_graph(use_checkpointing: bool = True, checkpoint_db: str = None):
             from langgraph.checkpoint.sqlite import SqliteSaver
             db_path = checkpoint_db or "runs/checkpoints.sqlite"
             Path(db_path).parent.mkdir(parents=True, exist_ok=True)
-            checkpointer = SqliteSaver.from_conn_string(db_path)
+            checkpointer = SqliteSaver.from_conn_string(db_path + "?check_same_thread=False")
             return graph.compile(checkpointer=checkpointer)
         except ImportError:
             log.warning("langgraph.checkpoint.sqlite not available — running without checkpointing")
@@ -229,7 +229,7 @@ def build_graph_from_stage(start_stage: int, only_stage: str = None, **kwargs):
         try:
             from langgraph.checkpoint.sqlite import SqliteSaver
             Path(checkpoint_db).parent.mkdir(parents=True, exist_ok=True)
-            return graph.compile(checkpointer=SqliteSaver.from_conn_string(checkpoint_db))
+            return graph.compile(checkpointer=SqliteSaver.from_conn_string(checkpoint_db + "?check_same_thread=False"))
         except ImportError:
             pass
     return graph.compile()

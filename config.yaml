@@ -11,8 +11,12 @@ llm:
     output_producer: openai/gpt-4o-mini
     reviewer: anthropic/claude-sonnet-4-6
   fallback: anthropic/claude-sonnet-4-6
+  temperatures:
+    reviewer: 0.0      # deterministic benchmark comparisons
+    paper_analyst: 0.2 # slight creativity for spec extraction
 
 pipeline:
   max_retries: 3
   checkpoint_db: runs/checkpoints.sqlite
   runs_dir: runs/
+  max_cost_per_stage: 2.0  # USD — circuit breaker per agentic stage

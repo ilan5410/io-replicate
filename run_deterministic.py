@@ -69,8 +69,8 @@ def main():
     }
 
     model_paths = {
-        "A_EU":                   str(model_dir / "A_EU.csv"),
-        "L_EU":                   str(model_dir / "L_EU.csv"),
+        "A_EU":                   str(model_dir / "A_EU.npy"),
+        "L_EU":                   str(model_dir / "L_EU.npy"),
         "d_EU":                   str(model_dir / "d_EU.csv"),
         "em_exports_total":       str(model_dir / "em_exports_total.csv"),
         "em_exports_country_matrix": str(model_dir / "em_exports_country_matrix.csv"),
