@@ -145,13 +145,22 @@ def _call_opus(prompt: str, config: dict) -> str:
     if "/" in model:
         model = model.split("/", 1)[1]
 
+    max_tokens = config.get("llm", {}).get("paper_analyst_max_tokens", 16000)
+
     if _anthropic_client is None:
         _anthropic_client = anthropic.Anthropic(api_key=api_key)
     response = _anthropic_client.messages.create(
         model=model,
-        max_tokens=8000,
+        max_tokens=max_tokens,
         messages=[{"role": "user", "content": prompt}],
     )
+
+    if response.stop_reason == "max_tokens":
+        raise ValueError(
+            f"Paper Analyst output was truncated at {max_tokens} tokens — the spec is too long. "
+            f"Increase llm.paper_analyst_max_tokens in config.yaml (current: {max_tokens}), "
+            f"or reduce the scope of benchmarks/outputs requested in the prompt."
+        )
 
     raw = response.content[0].text.strip()
 

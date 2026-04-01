@@ -14,6 +14,7 @@ llm:
   temperatures:
     reviewer: 0.0      # deterministic benchmark comparisons
     paper_analyst: 0.2 # slight creativity for spec extraction
+  paper_analyst_max_tokens: 16000  # raise if spec is truncated (max_tokens error)
 
 pipeline:
   max_retries: 3
