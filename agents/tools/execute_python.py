@@ -46,7 +46,7 @@ def make_execute_python_tool(run_dir: str):
             ["python3", str(script_path)],
             capture_output=True,
             text=True,
-            timeout=600,
+            timeout=3600,  # 1 hour — data downloads for 29+ countries take ~30 min
             cwd=str(Path(run_dir)),
             env=safe_env,
         )

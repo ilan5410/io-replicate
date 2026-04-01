@@ -58,7 +58,32 @@ def download_iciot_for_country(c_orig, year, output_path):
 
 ### Employment (nama_10_a64_e)
 ```python
-BASE_URL = "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/nama_10_a64_e"
+import os, itertools, requests
+import pandas as pd
+
+BASE_URL_E = "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/nama_10_a64_e"
+
+def parse_jsonstat(data):
+    dims = data["id"]
+    dim_labels = {}
+    for dim in dims:
+        cats = data["dimension"][dim]["category"]
+        if "label" in cats:
+            dim_labels[dim] = {k: v for k, v in cats["label"].items()}
+        else:
+            dim_labels[dim] = {k: k for k in cats["index"]}
+        if "index" in cats:
+            idx_order = cats["index"]
+            dim_labels[dim] = {k: dim_labels[dim][k] for k in sorted(idx_order, key=lambda x: idx_order[x])}
+    keys = list(itertools.product(*[list(dim_labels[d].keys()) for d in dims]))
+    values = data.get("value", {})
+    rows = []
+    for i, key_tuple in enumerate(keys):
+        val = values.get(i) if isinstance(values, dict) else (values[i] if i < len(values) else None)
+        row = {d: dim_labels[d][k] for d, k in zip(dims, key_tuple)}
+        row["value"] = val
+        rows.append(row)
+    return pd.DataFrame(rows)
 
 def download_employment_for_country(geo, year, output_path):
     params = {
@@ -68,19 +93,19 @@ def download_employment_for_country(geo, year, output_path):
         "time": str(year),
         "format": "JSON",
         "lang": "EN",
-        # DO NOT filter by nace_r2 here — it silently returns 0 rows!
+        # DO NOT add nace_r2 filter — it silently returns 0 rows
     }
-    resp = requests.get(BASE_URL, params=params, timeout=60)
+    resp = requests.get(BASE_URL_E, params=params, timeout=60)
     resp.raise_for_status()
     data = resp.json()
-    # Parse JSON-stat, get all NACE codes, then post-filter to leaf codes in Python
-    ...
+    df = parse_jsonstat(data)  # Use parse_jsonstat, NOT pd.DataFrame(data['value'])
+    df.to_csv(output_path, index=False)
 ```
 
 **Critical quirks:**
 - The `nace_r2` filter parameter silently returns 0 rows — NEVER filter by NACE in the API call
-- Download all NACE codes (aggregates + leaves) and post-filter in Python
-- Target leaf NACE codes for the 64 CPA mapping are listed in the spec's `classification.industry_list`
+- Use `parse_jsonstat(data)` to parse — `pd.DataFrame(data['value'])` does NOT work for JSON-stat
+- Download all NACE codes and post-filter in Python to the leaf codes in the spec's `classification.industry_list`
 - Returns ~94 NACE codes per country; most are aggregates that should be dropped
 
 ## Script Writing Rules
@@ -102,15 +127,26 @@ def download_employment_for_country(geo, year, output_path):
 
 3. **Use paths relative to the run directory** (the script runs with cwd = run directory).
 
+## How execute_python works
+
+`execute_python(script_content, script_name)` does TWO things in ONE call:
+1. Saves the script to `generated_scripts/<script_name>.py`
+2. Immediately runs it and returns `{success, returncode, stdout, stderr, script_path}`
+
+**You do NOT need a separate "run" script.** One call to execute_python both saves and runs.
+**Do NOT create `*_run.py` files that exec other files — that pattern does not work.**
+
 ## Write-Execute-Validate Pattern
 
-For each download script:
-1. Write the script to disk with `execute_python` (it will be saved to generated_scripts/)
-2. Execute it — check that returncode == 0
-3. Verify the output files exist and have non-zero size with `list_files`
-4. If the script fails, read stderr carefully, fix the specific error, and rewrite it (max 3 retries)
+For each dataset:
+1. Call `execute_python(script_content="...", script_name="download_ic_iot")` — saves AND runs in one call
+2. Check `result["success"]` and `result["returncode"] == 0`
+3. If it failed, read `result["stderr"]` carefully, fix the specific error, call execute_python again with the fixed script
+4. After success, verify output files with `list_files`
 
-After all downloads succeed, write the `data_manifest.yaml`.
+**Expected runtimes**: IC-IOT download = 30-60 minutes (29 countries × ~2 min each). Employment = ~5 minutes. Do not retry if the script is still running — wait for it to finish.
+
+After ALL downloads succeed, write `data_manifest.yaml` using `write_file`.
 
 ## Tools Available
 
@@ -119,9 +155,28 @@ After all downloads succeed, write the `data_manifest.yaml`.
 - write_file(path, content): Write a file
 - list_files(directory, pattern): List files
 
+## Writing data_manifest.yaml
+
+After all downloads succeed, call `write_file` with this content (adapt paths/counts):
+
+```yaml
+io_table:
+  path: data/raw/ic_iot
+  files: [AT.csv, BE.csv, ...]   # list actual filenames
+  total_rows: 1234567
+  download_timestamp: "2025-03-30T14:23:01"
+satellite_account:
+  path: data/raw/employment
+  files: [AT.csv, BE.csv, ...]
+  total_rows: 2688
+  download_timestamp: "2025-03-30T14:25:12"
+```
+
+Write it to `data/raw/data_manifest.yaml`.
+
 ## JSON-stat Parsing
 
-The Eurostat API returns JSON-stat format. Here is a reliable parser:
+The Eurostat API returns JSON-stat format. Here is a reliable parser (use it for BOTH IC-IOT and employment):
 
 ```python
 import itertools  # MUST be at top of script, not inside the function
