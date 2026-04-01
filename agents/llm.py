@@ -19,12 +19,16 @@ class LLMProvider(Enum):
     OPENAI_GPT4O_MINI = "gpt-4o-mini"
 
 
-# Default routing — mirrors config.yaml but used as fallback when config is absent
+# Default routing — mirrors config.yaml but used as fallback when config is absent.
+# Note: openai/gpt-4o-mini works on Python 3.10-3.12 but langchain-openai has
+# pydantic v1 serialization issues on Python 3.14+ that cause OpenAI 400 errors.
+# All stages default to Anthropic; switch data_acquirer/output_producer to
+# openai/gpt-4o-mini in config.yaml if using Python ≤3.12 for lower cost.
 DEFAULT_ROUTING: dict[str, str] = {
     "paper_analyst":   "anthropic/claude-opus-4-6",
-    "data_acquirer":   "openai/gpt-4o-mini",
+    "data_acquirer":   "anthropic/claude-sonnet-4-6",
     "data_preparer":   "anthropic/claude-sonnet-4-6",
-    "output_producer": "openai/gpt-4o-mini",
+    "output_producer": "anthropic/claude-sonnet-4-6",
     "reviewer":        "anthropic/claude-sonnet-4-6",
 }
 

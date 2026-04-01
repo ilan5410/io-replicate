@@ -6,9 +6,9 @@ llm:
       api_key_env: OPENAI_API_KEY
   routing:
     paper_analyst: anthropic/claude-opus-4-6
-    data_acquirer: openai/gpt-4o-mini
+    data_acquirer: anthropic/claude-sonnet-4-6   # gpt-4o-mini works on Python 3.10-3.12; langchain-openai has pydantic v1 issues on 3.14+
     data_preparer: anthropic/claude-sonnet-4-6
-    output_producer: openai/gpt-4o-mini
+    output_producer: anthropic/claude-sonnet-4-6  # same note as data_acquirer
     reviewer: anthropic/claude-sonnet-4-6
   fallback: anthropic/claude-sonnet-4-6
   temperatures:
