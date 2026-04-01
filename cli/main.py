@@ -307,9 +307,30 @@ def _check_api_keys(cfg: dict, start_stage: int):
 
 
 def _print_error(e: Exception):
+    import os
     msg = str(e)
-    if "dimension mismatch" in msg.lower():
-        # Actionable error message (plan §11.3)
+    if "401" in msg and ("authentication" in msg.lower() or "invalid" in msg.lower() and "key" in msg.lower()):
+        # Detect which key is likely wrong
+        anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "")
+        openai_key = os.environ.get("OPENAI_API_KEY", "")
+        key_hints = []
+        if anthropic_key:
+            key_hints.append(f"  ANTHROPIC_API_KEY is set (starts with: {anthropic_key[:12]}...)")
+        else:
+            key_hints.append("  ANTHROPIC_API_KEY is [red]not set[/red]")
+        if openai_key:
+            key_hints.append(f"  OPENAI_API_KEY   is set (starts with: {openai_key[:8]}...)")
+        else:
+            key_hints.append("  OPENAI_API_KEY   is [red]not set[/red]")
+        console.print(Panel(
+            "[red]API authentication failed (401 invalid key).[/red]\n\n"
+            "Current environment:\n" + "\n".join(key_hints) + "\n\n"
+            "[bold]Fix:[/bold] Update the key that is wrong/expired:\n"
+            "  export ANTHROPIC_API_KEY=sk-ant-...\n"
+            "  export OPENAI_API_KEY=sk-...",
+            title="Authentication Error", border_style="red"
+        ))
+    elif "dimension mismatch" in msg.lower():
         console.print(Panel(
             f"[red]Data preparation produced unexpected matrix dimensions.[/red]\n\n"
             f"Details: {msg}\n\n"
