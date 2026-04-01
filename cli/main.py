@@ -73,6 +73,9 @@ def run(paper, spec, config, start_stage, only, auto_approve):
         with open(config_path) as f:
             cfg = yaml.safe_load(f)
 
+    # Check API keys before doing anything — fail fast with a clear message
+    _check_api_keys(cfg, start_stage if start_stage is not None else 0)
+
     # Set up run directory
     run_id = time.strftime("%Y%m%d_%H%M%S")
     runs_dir = Path(cfg.get("pipeline", {}).get("runs_dir", "runs"))
@@ -173,9 +176,6 @@ def run(paper, spec, config, start_stage, only, auto_approve):
         app = build_graph_from_stage(1, checkpoint_db=checkpoint_db)
     else:
         app = build_graph(checkpoint_db=checkpoint_db)
-
-    # Check API keys before starting — fail fast with a clear message
-    _check_api_keys(cfg, start_stage or (1 if spec else 0))
 
     console.print(Panel("[bold green]Starting pipeline...[/bold green]"))
 
