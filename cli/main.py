@@ -174,6 +174,9 @@ def run(paper, spec, config, start_stage, only, auto_approve):
     else:
         app = build_graph(checkpoint_db=checkpoint_db)
 
+    # Check API keys before starting — fail fast with a clear message
+    _check_api_keys(cfg, start_stage or (1 if spec else 0))
+
     console.print(Panel("[bold green]Starting pipeline...[/bold green]"))
 
     try:
@@ -267,6 +270,40 @@ def _print_results(state: dict):
     outputs = state.get("output_paths", {})
     if outputs:
         console.print(f"\nOutputs written: {', '.join(outputs.keys())}")
+
+
+def _check_api_keys(cfg: dict, start_stage: int):
+    """Fail fast if required API keys are missing before the pipeline starts."""
+    import os
+    providers = cfg.get("llm", {}).get("providers", {})
+    anthropic_env = providers.get("anthropic", {}).get("api_key_env", "ANTHROPIC_API_KEY")
+    openai_env = providers.get("openai", {}).get("api_key_env", "OPENAI_API_KEY")
+
+    has_anthropic = bool(os.environ.get(anthropic_env))
+    has_openai = bool(os.environ.get(openai_env))
+
+    if not has_anthropic and not has_openai:
+        console.print(Panel(
+            f"[red]No API keys found.[/red]\n\n"
+            f"Set at least one of:\n"
+            f"  export {anthropic_env}=sk-ant-...\n"
+            f"  export {openai_env}=sk-...\n\n"
+            f"Stages 0, 2, 6 require Anthropic. Stages 1, 5 use OpenAI (fall back to Anthropic if absent).",
+            title="Missing API Keys", border_style="red"
+        ))
+        sys.exit(1)
+
+    # Stages that require Anthropic (no OpenAI fallback available)
+    anthropic_only_stages = {0, 2, 6}
+    needs_anthropic = start_stage in anthropic_only_stages or start_stage <= 2
+    if needs_anthropic and not has_anthropic:
+        console.print(Panel(
+            f"[red]{anthropic_env} is not set.[/red]\n\n"
+            f"Stages 0, 2, 6 use Claude and require an Anthropic API key.\n"
+            f"Set it with:  export {anthropic_env}=sk-ant-...",
+            title="Missing Anthropic API Key", border_style="red"
+        ))
+        sys.exit(1)
 
 
 def _print_error(e: Exception):

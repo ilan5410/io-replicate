@@ -47,19 +47,28 @@ def data_acquirer_node(state: PipelineState) -> dict:
         stage_name="data_acquirer", max_cost_usd=max_cost,
     )
 
-    # Load manifest
+    # Load manifest — fail hard if missing (Stage 2 cannot run without data)
     manifest_path = raw_dir / "data_manifest.yaml"
-    data_manifest = {}
-    if manifest_path.exists():
-        import yaml as _yaml2
-        with open(manifest_path) as f:
-            data_manifest = _yaml2.safe_load(f) or {}
-        log.info(f"Data manifest loaded: {list(data_manifest.keys())}")
-    else:
-        log.warning("data_manifest.yaml not found after Data Acquirer run")
+    if not manifest_path.exists():
+        # List any generated scripts to help diagnose
+        scripts = sorted((run_dir / "generated_scripts").glob("*.py"))
+        script_names = ", ".join(s.name for s in scripts) if scripts else "(none)"
+        raise RuntimeError(
+            f"Data Acquirer finished without producing data_manifest.yaml. "
+            f"No raw data was downloaded — Stage 2 cannot proceed.\n\n"
+            f"Generated scripts: {script_names}\n"
+            f"Check the scripts in {run_dir}/generated_scripts/ for errors.\n"
+            f"To resume from Stage 1 after fixing: "
+            f"io-replicate run --spec <spec> --start-stage 1"
+        )
+
+    import yaml as _yaml2
+    with open(manifest_path) as f:
+        data_manifest = _yaml2.safe_load(f) or {}
+    log.info(f"Data manifest loaded: {list(data_manifest.keys())}")
 
     return {
         "data_manifest": data_manifest,
-        "acquisition_complete": manifest_path.exists(),
+        "acquisition_complete": True,
         "current_stage": 1,
     }

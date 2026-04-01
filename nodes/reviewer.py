@@ -53,12 +53,27 @@ def reviewer_node(state: PipelineState) -> dict:
     report_path.write_text(report_md)
     log.info(f"Review report written to {report_path}")
 
-    review_passed = n_fail == 0
+    # Pass only when: no failures AND at least one benchmark was actually verified.
+    # All-UNVERIFIED means decomposition outputs are missing — that is not a pass.
+    verified = n_pass + n_warn + n_fail
+    review_passed = n_fail == 0 and verified > 0
+    if not review_passed and verified == 0:
+        log.error(
+            "All benchmarks are UNVERIFIED — decomposition outputs are missing. "
+            "Run stages 3-5 before the reviewer."
+        )
+
+    errors = []
+    if n_fail:
+        errors.append(f"{n_fail} failure(s) in review report — see {report_path}")
+    if verified == 0:
+        errors.append("No benchmarks could be verified — decomposition outputs missing")
+
     return {
         "review_report_path": str(report_path),
         "review_passed": review_passed,
         "review_warnings": [f"{n_warn} warning(s) in review report"] if n_warn else [],
-        "review_errors": [f"{n_fail} failure(s) in review report — see {report_path}"] if n_fail else [],
+        "review_errors": errors,
         "current_stage": 6,
     }
 

@@ -83,13 +83,32 @@ def download_employment_for_country(geo, year, output_path):
 - Target leaf NACE codes for the 64 CPA mapping are listed in the spec's `classification.industry_list`
 - Returns ~94 NACE codes per country; most are aggregates that should be dropped
 
+## Script Writing Rules
+
+**CRITICAL — follow these exactly or every script will fail:**
+
+1. **Put ALL imports at the very top of the script** (never inside functions):
+   ```python
+   import os, itertools, json, requests
+   import pandas as pd
+   import yaml
+   ```
+
+2. **Create output directories before writing files:**
+   ```python
+   output_dir = "data/raw/ic_iot"
+   os.makedirs(output_dir, exist_ok=True)
+   ```
+
+3. **Use paths relative to the run directory** (the script runs with cwd = run directory).
+
 ## Write-Execute-Validate Pattern
 
 For each download script:
 1. Write the script to disk with `execute_python` (it will be saved to generated_scripts/)
 2. Execute it — check that returncode == 0
-3. Verify the output files exist and have non-zero size
-4. If the script fails, diagnose the error from stderr and rewrite it (max 3 retries)
+3. Verify the output files exist and have non-zero size with `list_files`
+4. If the script fails, read stderr carefully, fix the specific error, and rewrite it (max 3 retries)
 
 After all downloads succeed, write the `data_manifest.yaml`.
 
@@ -105,8 +124,10 @@ After all downloads succeed, write the `data_manifest.yaml`.
 The Eurostat API returns JSON-stat format. Here is a reliable parser:
 
 ```python
+import itertools  # MUST be at top of script, not inside the function
+import pandas as pd
+
 def parse_jsonstat(data):
-    import pandas as pd, itertools
     dims = data["id"]
     sizes = data["size"]
     dim_labels = {}
