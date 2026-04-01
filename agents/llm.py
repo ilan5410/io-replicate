@@ -27,7 +27,7 @@ class LLMProvider(Enum):
 DEFAULT_ROUTING: dict[str, str] = {
     "paper_analyst":   "anthropic/claude-opus-4-6",
     "data_acquirer":   "anthropic/claude-sonnet-4-6",
-    "data_preparer":   "anthropic/claude-sonnet-4-6",
+    "data_preparer":   "anthropic/claude-haiku-4-5-20251001",
     "output_producer": "anthropic/claude-sonnet-4-6",
     "reviewer":        "anthropic/claude-sonnet-4-6",
 }
