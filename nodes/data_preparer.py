@@ -13,7 +13,7 @@ from agents.tools import make_execute_python_tool, read_file, write_file, list_f
 from agents.validators import validate_prepared_data
 
 log = logging.getLogger("data_preparer")
-MAX_AGENT_ITERATIONS = 12  # write parse script + execute + fix if needed
+MAX_AGENT_ITERATIONS = 20  # write parse script + execute + fix if needed
 
 
 def data_preparer_node(state: PipelineState) -> dict:
@@ -61,16 +61,20 @@ def data_preparer_node(state: PipelineState) -> dict:
             + "\nFix these errors. Do NOT rewrite from scratch — modify the approach."
         )
 
+    # Sample a few rows from raw data so the agent knows the exact format upfront
+    data_preview = _build_data_preview(raw_dir)
+
     initial_message = (
         f"Parse the raw data into analysis-ready matrices.\n\n"
         f"Raw data directory: {raw_dir}\n"
         f"Output directory: {prepared_dir}\n"
         f"Data manifest: {raw_dir}/data_manifest.yaml\n\n"
         f"Spec:\n```yaml\n{spec_str}\n```"
+        f"\n\n{data_preview}"
         f"{error_context}\n"
     )
 
-    max_cost = config.get("pipeline", {}).get("max_cost_per_stage", 2.0)
+    max_cost = config.get("pipeline", {}).get("max_cost_per_stage", 5.0)  # data prep is token-heavy
     run_agent_loop(
         llm=llm, tools=tools, system_prompt=system_prompt,
         initial_message=initial_message, max_iterations=MAX_AGENT_ITERATIONS,
@@ -99,3 +103,35 @@ def data_preparer_node(state: PipelineState) -> dict:
         "retry_count": retry_count + 1,
         "current_stage": 2,
     }
+
+
+def _build_data_preview(raw_dir: Path) -> str:
+    """
+    Read a few rows from the first IC-IOT and employment file to show
+    the agent the exact column names and value formats upfront.
+    """
+    try:
+        import pandas as pd
+        lines = ["## Data Preview (actual column values — use these for filtering/mapping)\n"]
+
+        iot_files = sorted((raw_dir / "ic_iot").glob("*.csv"))
+        if iot_files:
+            df = pd.read_csv(iot_files[0], nrows=4)
+            lines.append(f"IC-IOT ({iot_files[0].name}) — first 4 rows:")
+            lines.append(df.to_string(index=False))
+            lines.append(f"\n  prd_ava unique sample: {df['prd_ava'].unique()[:2].tolist()}")
+            lines.append(f"  prd_use unique sample: {df['prd_use'].unique()[:2].tolist()}")
+            lines.append(f"  c_orig values: {df['c_orig'].unique().tolist()}")
+            lines.append(f"  c_dest sample: {df['c_dest'].unique()[:5].tolist()}")
+
+        emp_files = sorted((raw_dir / "employment").glob("*.csv"))
+        if emp_files:
+            df = pd.read_csv(emp_files[0], nrows=4)
+            lines.append(f"\nEmployment ({emp_files[0].name}) — first 4 rows:")
+            lines.append(df.to_string(index=False))
+            lines.append(f"  nace_r2 sample: {df['nace_r2'].unique()[:3].tolist()}")
+            lines.append(f"  geo values: {df['geo'].unique().tolist()}")
+
+        return "\n".join(lines)
+    except Exception as e:
+        return f"(Data preview unavailable: {e})"
