@@ -207,20 +207,20 @@ def build_graph_from_stage(start_stage: int, only_stage: str = None, **kwargs):
 
     graph.set_entry_point(nodes_to_include[0])
 
+    needs_escalation = "data_preparer" in nodes_to_include or nodes_to_include[-1] == "reviewer"
+    if needs_escalation:
+        graph.add_node("human_escalation", human_escalation_node)
+
     for i in range(len(nodes_to_include) - 1):
         curr = nodes_to_include[i]
         nxt = nodes_to_include[i + 1]
-        # Keep the validation gate for data_preparer if it's in the subgraph
         if curr == "data_preparer":
-            graph.add_node("human_escalation", human_escalation_node)
             graph.add_conditional_edges("data_preparer", route_after_prep_validator)
         else:
             graph.add_edge(curr, nxt)
 
-    # Keep review gate
     last = nodes_to_include[-1]
     if last == "reviewer":
-        graph.add_node("human_escalation", human_escalation_node)
         graph.add_conditional_edges("reviewer", route_after_reviewer)
     else:
         graph.add_edge(last, END)
