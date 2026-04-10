@@ -39,9 +39,40 @@ List EVERY table and figure in the paper:
 - tables: id, title, columns, source_data (variable names), sort
 - figures: id, title, type (grouped_bar | stacked_bar | line | scatter | heatmap), series, sort, source_data
 
+### output_schema  ← CRITICAL for downstream validation
+Define the output files Stage 5 will produce and the EXACT column names they must use.
+This section is the single source of truth for column names — both Stage 5 and Stage 6
+read from it. If you define it correctly here, the validator will work automatically.
+
+For each output file:
+- key: a short logical name (e.g. country_decomposition, industry_table4)
+- file: the actual filename (e.g. country_decomposition.csv)
+- description: one sentence
+- key_column or index_column: which column identifies rows
+- columns: list of {name, type (str|float|int), unit (optional), description}
+
+Column names MUST match what Stage 5 will write. Use snake_case with a unit suffix
+where it avoids ambiguity (e.g. total_employment_THS, spillover_share_pct).
+
+Example:
+```yaml
+output_schema:
+  country_decomposition:
+    file: country_decomposition.csv
+    description: "One row per analysis entity — employment decomposition by country"
+    key_column: country
+    columns:
+      - {name: country, type: str}
+      - {name: total_employment_THS, type: float, unit: thousands}
+      - {name: total_by_country_THS, type: float, unit: thousands}
+      - {name: domestic_effect_THS, type: float, unit: thousands}
+      - {name: spillover_share_pct, type: float, unit: percent}
+```
+
 ### benchmarks
 Extract EVERY numerical result the paper reports:
 - name, expected value, unit (thousands | percent | ratio | etc.), approximate flag if the paper says "approximately"
+- source: MUST reference column names defined in output_schema above — they must match exactly
 Set tolerances: warning_pct: 10, error_pct: 25 (unless paper suggests otherwise)
 
 ### limitations

@@ -1,6 +1,7 @@
 # Deterministic nodes — no external deps beyond numpy/pandas
 from .model_builder import model_builder_node
 from .decomposer import decomposer_node
+from .spec_reconciler import spec_reconciler_node
 
 # Agentic nodes — require langchain_core / langgraph
 try:
@@ -29,6 +30,7 @@ except ImportError as _import_err:
 __all__ = [
     "model_builder_node",
     "decomposer_node",
+    "spec_reconciler_node",
     "paper_analyst_node",
     "data_acquirer_node",
     "data_preparer_node",

@@ -27,15 +27,24 @@ from typing import Any
 
 log = logging.getLogger("benchmark_validator")
 
-# Map spec-side `file` names → actual filenames in decomp_dir
-_FILE_MAP: dict[str, str] = {
+# Fallback file map for specs that pre-date the output_schema feature
+_LEGACY_FILE_MAP: dict[str, str] = {
     "country_decomposition": "country_decomposition.csv",
     "industry_table4":       "industry_table4.csv",
     "industry_figure3":      "industry_figure3.csv",
+    "annex_c_matrix":        "annex_c_matrix.csv",
 }
 
 
-def run_benchmark_checks(spec: dict, decomp_dir: Path) -> list[dict]:
+def _build_file_map(spec: dict) -> dict[str, str]:
+    """Build file map from spec output_schema; falls back to legacy hardcoded map."""
+    schema = spec.get("output_schema", {})
+    if schema:
+        return {key: val["file"] for key, val in schema.items()}
+    return _LEGACY_FILE_MAP.copy()
+
+
+def run_benchmark_checks(spec: dict, decomp_dir: Path) -> list[dict]:  # noqa: C901
     """
     Run all benchmarks defined in spec["benchmarks"]["values"].
 
@@ -47,6 +56,8 @@ def run_benchmark_checks(spec: dict, decomp_dir: Path) -> list[dict]:
     tolerances = benchmarks.get("tolerances", {})
     warn_pct = float(tolerances.get("warning_pct", 10))
     error_pct = float(tolerances.get("error_pct", 25))
+
+    file_map = _build_file_map(spec)
 
     results: list[dict] = []
     for bm in benchmarks.get("values", []):
@@ -66,7 +77,7 @@ def run_benchmark_checks(spec: dict, decomp_dir: Path) -> list[dict]:
             continue
 
         try:
-            actual = _resolve(source, decomp_dir)
+            actual = _resolve(source, decomp_dir, file_map)
         except Exception as e:
             log.warning(f"Benchmark '{name}' resolution failed: {e}")
             results.append(_result(name, expected, unit, None, None, "ERROR", str(e)))
@@ -133,14 +144,14 @@ def _result(name, expected, unit, actual, deviation_pct, status, note) -> dict:
     }
 
 
-def _resolve(source: dict[str, Any], decomp_dir: Path) -> float:
+def _resolve(source: dict[str, Any], decomp_dir: Path, file_map: dict[str, str]) -> float:
     """Resolve a source descriptor to a single float value."""
     import pandas as pd
 
     file_key = source.get("file")
-    filename = _FILE_MAP.get(file_key)
+    filename = file_map.get(file_key)
     if not filename:
-        raise ValueError(f"Unknown source file '{file_key}'. Valid: {list(_FILE_MAP)}")
+        raise ValueError(f"Unknown source file '{file_key}'. Valid: {list(file_map)}")
 
     path = decomp_dir / filename
     if not path.exists():
@@ -160,6 +171,19 @@ def _resolve(source: dict[str, Any], decomp_dir: Path) -> float:
             raise KeyError(f"Column '{column}' not in {filename}. Available: {list(df.columns)}")
         return float(df[column].sum())
 
+    elif op == "sum_row":
+        # Sum across all columns for a named row (index value) — used for industry_table4
+        row_key = source.get("row")
+        if row_key is None:
+            raise ValueError("op=sum_row requires a 'row' key")
+        if row_key not in df.index:
+            raise KeyError(f"Row '{row_key}' not in {filename}. Available: {list(df.index)}")
+        return float(df.loc[row_key].sum())
+
+    elif op == "sum_all":
+        # Grand total of the entire table
+        return float(df.to_numpy(dtype=float, na_value=0.0).sum())
+
     elif op == "lookup":
         filt: dict = source.get("filter", {})
         mask = pd.Series([True] * len(df), index=df.index)
@@ -175,4 +199,4 @@ def _resolve(source: dict[str, Any], decomp_dir: Path) -> float:
         return float(rows.iloc[0][column])
 
     else:
-        raise ValueError(f"Unknown op '{op}'. Valid: sum_column, lookup")
+        raise ValueError(f"Unknown op '{op}'. Valid: sum_column, sum_row, sum_all, lookup")

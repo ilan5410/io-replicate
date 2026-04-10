@@ -44,6 +44,7 @@ def output_producer_node(state: PipelineState) -> dict:
 
     import yaml as _yaml
     outputs_spec_str = _yaml.dump({"outputs": spec["outputs"]}, default_flow_style=False)
+    schema_str = _yaml.dump({"output_schema": spec.get("output_schema", {})}, default_flow_style=False)
 
     initial_message = (
         f"Produce all tables and figures specified in the outputs section.\n\n"
@@ -51,7 +52,9 @@ def output_producer_node(state: PipelineState) -> dict:
         f"Prepared data directory: {run_dir / 'data' / 'prepared'}\n"
         f"Output tables directory: {outputs_dir / 'tables'}\n"
         f"Output figures directory: {outputs_dir / 'figures'}\n\n"
-        f"Outputs to produce:\n```yaml\n{outputs_spec_str}\n```\n\n"
+        f"## Output schema (column names are MANDATORY — use verbatim):\n"
+        f"```yaml\n{schema_str}\n```\n\n"
+        f"## Outputs to produce:\n```yaml\n{outputs_spec_str}\n```\n\n"
         f"EU countries (for labeling): {[e['code'] for e in spec['geography']['analysis_entities']]}\n"
     )
 

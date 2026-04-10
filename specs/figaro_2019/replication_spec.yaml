@@ -164,11 +164,12 @@ methodology:
   leontief_system: eu_only
   export_definition: arto_2015
   export_definition_detail: |
-    The EU-28 Leontief inverse is built from intra-EU intermediate flows only.
-    The export vector e contains:
-    - All EU→non-EU flows (intermediate + final demand)
-    - Intra-EU final demand flows (treated as exogenous)
-    This avoids double-counting intra-EU intermediate trade.
+    The EU-28 Leontief inverse is built from intra-EU intermediate flows only (Z).
+    The export vector e contains ALL EU→non-EU flows:
+    - EU→non-EU intermediate flows (EU products used as inputs in US/RoW industries)
+    - EU→non-EU final demand flows (EU products consumed/invested in US/RoW)
+    Intra-EU final demand (EU household/gov consumption of EU products) is excluded
+    from both Z and e — it is outside the model scope entirely.
     Reference: Arto et al. (2015), "Global value chains and the EU industry".
   satellite_coefficient: employment_per_output
   notes:
@@ -272,6 +273,49 @@ benchmarks:
     - "Using product-by-product tables; paper uses industry-by-industry. Expect systematic differences."
     - "Employment data vintage may differ from paper's vintage."
     - "LU and MT may have missing confidential employment data."
+
+output_schema:
+  country_decomposition:
+    file: country_decomposition.csv
+    description: "One row per EU analysis entity — employment decomposition by country"
+    key_column: country
+    columns:
+      - {name: country,                 type: str,   description: "ISO country code (e.g. DE, FR)"}
+      - {name: total_employment_THS,    type: float, unit: thousands, description: "Total employment in country"}
+      - {name: domestic_effect_THS,     type: float, unit: thousands, description: "Employment in country supported by own exports"}
+      - {name: spillover_received_THS,  type: float, unit: thousands, description: "Employment in country supported by other EU exports"}
+      - {name: spillover_generated_THS, type: float, unit: thousands, description: "Employment generated elsewhere by this country's exports"}
+      - {name: direct_effect_THS,       type: float, unit: thousands, description: "Direct employment effect (no multiplier)"}
+      - {name: indirect_effect_THS,     type: float, unit: thousands, description: "Indirect employment effect (via supply chain)"}
+      - {name: total_in_country_THS,    type: float, unit: thousands, description: "Total employment IN country supported by all EU exports"}
+      - {name: total_by_country_THS,    type: float, unit: thousands, description: "Total employment supported BY this country's exports"}
+      - {name: export_emp_share_pct,    type: float, unit: percent,   description: "Export-supported employment as % of total"}
+      - {name: domestic_share_pct,      type: float, unit: percent,   description: "Domestic share of export-supported employment"}
+      - {name: spillover_share_pct,     type: float, unit: percent,   description: "Spillover share of export-supported employment"}
+  industry_table4:
+    file: industry_table4.csv
+    description: "10×10 sector matrix — employment supported (rows: employing sector, cols: exporting sector)"
+    index_column: sector
+    columns:
+      - {name: "A",   type: float, description: "Agriculture, forestry and fishing"}
+      - {name: "B-E", type: float, description: "Mining, manufacturing, utilities"}
+      - {name: "F",   type: float, description: "Construction"}
+      - {name: "G-I", type: float, description: "Wholesale, retail, transport, hotels"}
+      - {name: "J",   type: float, description: "Information and communication"}
+      - {name: "K",   type: float, description: "Financial and insurance activities"}
+      - {name: "L",   type: float, description: "Real estate activities"}
+      - {name: "M-N", type: float, description: "Professional, scientific and admin services"}
+      - {name: "O-Q", type: float, description: "Public admin, education, health"}
+      - {name: "R-U", type: float, description: "Arts, entertainment and other services"}
+  industry_figure3:
+    file: industry_figure3.csv
+    description: "One row per 10-sector group — domestic vs spillover employment breakdown"
+    key_column: sector
+    columns:
+      - {name: sector,               type: str,   description: "10-sector code (e.g. B-E, G-I)"}
+      - {name: total_employment_THS, type: float, unit: thousands, description: "Total employment in sector"}
+      - {name: domestic_THS,         type: float, unit: thousands, description: "Domestic employment component"}
+      - {name: spillover_THS,        type: float, unit: thousands, description: "Spillover employment component"}
 
 limitations:
   - "Product-by-product vs industry-by-industry IC-IOT (paper footnote 6) — public data only provides p×p"

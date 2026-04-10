@@ -14,6 +14,7 @@ from nodes import (
     model_builder_node,
     decomposer_node,
     output_producer_node,
+    spec_reconciler_node,
     reviewer_node,
 )
 
@@ -108,6 +109,7 @@ def build_graph(use_checkpointing: bool = True, checkpoint_db: str = None):
     graph.add_node("model_builder", model_builder_node)
     graph.add_node("decomposer", decomposer_node)
     graph.add_node("output_producer", output_producer_node)
+    graph.add_node("spec_reconciler", spec_reconciler_node)
     graph.add_node("reviewer", reviewer_node)
     graph.add_node("human_escalation", human_escalation_node)
 
@@ -124,7 +126,8 @@ def build_graph(use_checkpointing: bool = True, checkpoint_db: str = None):
 
     graph.add_edge("model_builder", "decomposer")
     graph.add_edge("decomposer", "output_producer")
-    graph.add_edge("output_producer", "reviewer")
+    graph.add_edge("output_producer", "spec_reconciler")
+    graph.add_edge("spec_reconciler", "reviewer")
 
     # Review gate
     graph.add_conditional_edges("reviewer", route_after_reviewer)
@@ -150,6 +153,7 @@ _NODE_FN_MAP = {
     "model_builder":   model_builder_node,
     "decomposer":      decomposer_node,
     "output_producer": output_producer_node,
+    "spec_reconciler": spec_reconciler_node,
     "reviewer":        reviewer_node,
 }
 
@@ -166,7 +170,7 @@ _STAGE_TO_NODE = {
 # Ordered list of nodes for building partial graphs
 _NODE_ORDER = [
     "data_acquirer", "data_preparer", "model_builder",
-    "decomposer", "output_producer", "reviewer",
+    "decomposer", "output_producer", "spec_reconciler", "reviewer",
 ]
 
 

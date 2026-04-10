@@ -123,7 +123,7 @@ def data_preparer_node(state: PipelineState) -> dict:
     Z = _build_Z(iot, eu_set, cpa_set, code_to_idx, ctry_to_idx, N_c, N_i, N)
 
     # ── Build e_nonEU (Arto 2015) ────────────────────────────────────────────
-    _console.print("  Building e_nonEU (EU→non-EU + intra-EU final demand)...")
+    _console.print("  Building e_nonEU (EU→non-EU intermediate + final demand)...")
     e = _build_e(iot, eu_set, cpa_set, code_to_idx, ctry_to_idx, N_c, N_i, N)
 
     # ── Build x_EU ───────────────────────────────────────────────────────────
@@ -257,29 +257,28 @@ def _build_Z(iot, eu_set, cpa_set, code_to_idx, ctry_to_idx, N_c, N_i, N):
 
 
 def _build_e(iot, eu_set, cpa_set, code_to_idx, ctry_to_idx, N_c, N_i, N):
-    # Part 1: EU→non-EU intermediate flows
-    mask_int = (
+    """
+    Export vector (Arto 2015): all EU→non-EU flows, regardless of use type.
+
+    Includes:
+    - EU→non-EU intermediate flows (prd_use is a CPA code)
+    - EU→non-EU final demand flows (prd_use is P3_S13, P3_S14, P3_S15, P51G, P5M)
+
+    Does NOT include intra-EU final demand — that is domestic EU consumption and
+    is excluded from the Leontief export calculation entirely. The spec note
+    "intra-EU FD treated as exogenous" means it is excluded from Z, not that it
+    is included in e.
+    """
+    mask = (
         iot["c_orig"].isin(eu_set) &
         ~iot["c_dest"].isin(eu_set) &
-        iot["prd_ava_n"].isin(cpa_set) &
-        iot["prd_use_n"].isin(cpa_set)
+        iot["prd_ava_n"].isin(cpa_set)
+        # prd_use_n unrestricted: captures both intermediate (CPA) and FD (P3_S13...) uses
     )
-    df_int = iot[mask_int]
-    row_int = (df_int["c_orig"].map(ctry_to_idx) * N_i + df_int["prd_ava_n"].map(code_to_idx)).values
-
-    # Part 2: intra-EU final demand (exogenous under Arto 2015)
-    mask_fd = (
-        iot["c_orig"].isin(eu_set) &
-        iot["c_dest"].isin(eu_set) &
-        iot["prd_ava_n"].isin(cpa_set) &
-        iot["prd_use_n"].isin(FD_COLS)
-    )
-    df_fd = iot[mask_fd]
-    row_fd = (df_fd["c_orig"].map(ctry_to_idx) * N_i + df_fd["prd_ava_n"].map(code_to_idx)).values
-
+    df = iot[mask]
+    row_idx = (df["c_orig"].map(ctry_to_idx) * N_i + df["prd_ava_n"].map(code_to_idx)).values
     e = np.zeros(N)
-    np.add.at(e, row_int, df_int["value"].values)
-    np.add.at(e, row_fd,  df_fd["value"].values)
+    np.add.at(e, row_idx, df["value"].values)
     return e
 
 

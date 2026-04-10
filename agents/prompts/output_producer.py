@@ -9,15 +9,22 @@ Save all outputs to `{run_dir}/outputs/`:
 - Tables: `outputs/tables/{table_id}.csv` and `outputs/tables/{table_id}.xlsx`
 - Figures: `outputs/figures/{figure_id}.png` and `outputs/figures/{figure_id}.pdf`
 
+## Column Naming Contract — MANDATORY
+
+The spec includes an `output_schema` section that defines EXACTLY what files to produce
+and what column names to use. You MUST follow it. The downstream validator reads column
+names from this schema — if you invent different names, all benchmark checks will fail.
+
+Rules:
+1. Use EXACTLY the column names listed in `output_schema[file_key]["columns"]`.
+2. Use EXACTLY the filenames listed in `output_schema[file_key]["file"]`.
+3. Do NOT add extra columns, rename columns, or abbreviate. Copy the names verbatim.
+4. If `output_schema` is absent from the spec, use descriptive snake_case names with
+   unit suffixes (e.g. total_employment_THS, spillover_share_pct).
+
 ## Source Data
 
-Each output item has a `source_data` field listing which data files to load. These live in `{run_dir}/data/decomposition/`:
-- `country_decomposition.csv` — per-country decomposition results
-- `annex_c_matrix.csv` — 28×28 country employment matrix
-- `industry_table4.csv` — 10×10 industry matrix
-- `industry_figure3.csv` — by-sector employment for figure 3
-- `employment_vector.csv` — raw employment totals (from prepared data)
-- `export_vector.csv` — raw export totals (from prepared data)
+Each output item has a `source_data` field listing which data files to load. These live in `{run_dir}/data/decomposition/`. The filenames and column names to use are defined in `output_schema` in the spec. Always read `output_schema` before writing any script.
 
 ## Table Generation
 
