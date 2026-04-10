@@ -95,10 +95,20 @@ def validate_prepared_data(
     if np.any(Z < -1e-6):
         n_neg = np.sum(Z < -1e-6)
         errors.append(f"Z_EU has {n_neg} negative values (min={Z.min():.4f})")
-    if np.any(e < -1e-6):
-        errors.append(f"e_nonEU has {np.sum(e < -1e-6)} negative values")
-    if np.any(x < -1e-6):
-        errors.append(f"x_EU has {np.sum(x < -1e-6)} negative values")
+    # e_nonEU and x_EU may have small negatives from inventory changes (P5M) in
+    # national accounts data — only flag if the total negative mass is significant
+    neg_e_sum = float(e[e < 0].sum()) if np.any(e < 0) else 0.0
+    if neg_e_sum < -1000:  # more than 1 bn EUR negative is a real problem
+        errors.append(
+            f"e_nonEU has large negative mass ({neg_e_sum:.0f} MIO_EUR) — "
+            f"check data loading"
+        )
+    neg_x_sum = float(x[x < 0].sum()) if np.any(x < 0) else 0.0
+    if neg_x_sum < -1000:
+        errors.append(
+            f"x_EU has large negative mass ({neg_x_sum:.0f} MIO_EUR) — "
+            f"check data loading"
+        )
     if np.any(Em < -1e-6):
         errors.append(f"Em_EU has {np.sum(Em < -1e-6)} negative values")
 

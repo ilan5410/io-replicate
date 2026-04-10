@@ -130,6 +130,18 @@ def data_preparer_node(state: PipelineState) -> dict:
     _console.print("  Building x_EU (total output)...")
     x = _build_x(iot, eu_set, cpa_set, code_to_idx, ctry_to_idx, N_c, N_i, N)
 
+    # Clip negative values to 0 (standard IO practice — negatives arise from
+    # inventory changes in P5M which are legitimately negative in national accounts
+    # but Leontief model requires non-negative vectors)
+    n_neg_e = int(np.sum(e < 0))
+    n_neg_x = int(np.sum(x < 0))
+    if n_neg_e:
+        log.info(f"Clipping {n_neg_e} negative e_nonEU values (min={e.min():.2f} MIO_EUR) to 0")
+    if n_neg_x:
+        log.info(f"Clipping {n_neg_x} negative x_EU values (min={x.min():.2f} MIO_EUR) to 0")
+    e = np.maximum(e, 0.0)
+    x = np.maximum(x, 0.0)
+
     _console.print(f"  Z sum={Z.sum():,.0f}  e sum={e.sum():,.0f}  x sum={x.sum():,.0f}")
 
     # ── Load employment ──────────────────────────────────────────────────────
