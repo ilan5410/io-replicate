@@ -81,12 +81,12 @@ flowchart TD
     end
 
     %% ── Styles ───────────────────────────────────────────────────
-    classDef generalInput  fill:#4A90D9,stroke:#2171B5,color:#fff
-    classDef projectInput  fill:#52B788,stroke:#2D6A4F,color:#fff
-    classDef agentTool     fill:#FF9F1C,stroke:#C87000,color:#000
+    classDef generalInput fill:#4A90D9,stroke:#2171B5,color:#fff
+    classDef projectInput fill:#52B788,stroke:#2D6A4F,color:#fff
+    classDef agentTool fill:#FF9F1C,stroke:#C87000,color:#000
 
-    class CONFIG,K1        generalInput
-    class PDF,SPEC,K2      projectInput
+    class CONFIG,K1 generalInput
+    class PDF,SPEC,K2 projectInput
     class PA,APP,DA,DP,MB,DC,OP,RV,K3 agentTool
 ```
 
