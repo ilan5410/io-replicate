@@ -335,6 +335,7 @@ emp = emp[emp['geo'].isin(eu_codes)]
 - Use absolute paths as given — do NOT use __file__ or relative navigation
 - `os.makedirs(prepared_dir, exist_ok=True)` at the start
 - Print progress (rows loaded, matrix shapes) so failures are diagnosable
+- **Fail loudly if inputs are missing**: `assert os.path.exists(iot_path), f"IC-IOT file not found: {{iot_path}}"` — do NOT silently skip
 - Save all 5 files before exiting{prior_section}
 
 Output ONLY the raw Python script — no prose, no markdown fences."""

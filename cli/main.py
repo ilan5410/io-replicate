@@ -80,9 +80,11 @@ def run(paper, spec, config, start_stage, run_dir, only, auto_approve):
     _check_api_keys(cfg, start_stage if start_stage is not None else 0)
 
     # Set up run directory — reuse existing if --run-dir provided, otherwise create fresh
+    # Always resolve to absolute path so prompts get real paths (not relative ones that
+    # double up when the script runs with cwd=run_dir).
     runs_dir = Path(cfg.get("pipeline", {}).get("runs_dir", "runs"))
     if run_dir:
-        run_dir = Path(run_dir)
+        run_dir = Path(run_dir).resolve()
         if not run_dir.exists():
             console.print(f"[red]ERROR:[/red] --run-dir '{run_dir}' does not exist.")
             sys.exit(1)
@@ -90,7 +92,7 @@ def run(paper, spec, config, start_stage, run_dir, only, auto_approve):
         console.print(f"[bold]Run ID:[/bold] {run_id} (reusing existing run directory)")
     else:
         run_id = time.strftime("%Y%m%d_%H%M%S")
-        run_dir = runs_dir / run_id
+        run_dir = (runs_dir / run_id).resolve()
         run_dir.mkdir(parents=True, exist_ok=True)
         run_id = run_dir.name
     console.print(f"[bold]Run directory:[/bold] {run_dir}")
