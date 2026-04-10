@@ -8,63 +8,23 @@ Given a paper PDF (or a hand-crafted spec), it runs a 7-stage pipeline: data acq
 
 ```mermaid
 flowchart TD
-    %% ── General inputs ──────────────────────────────────────────
-    CONFIG["⚙️ config.yaml
-    LLM routing · API key env vars
-    Cost limits · Model temperatures"]
+    CONFIG["⚙️ config.yaml"]
+    PDF["📄 Paper PDF (optional)"]
+    SPEC["📋 replication_spec.yaml"]
 
-    %% ── Project-specific inputs ─────────────────────────────────
-    PDF["📄 Paper PDF
-    optional"]
-    SPEC["📋 replication_spec.yaml
-    Geography · Industries
-    Data sources · Benchmarks"]
+    PA["Stage 0 — Paper Analyst\nOpus · PDF → spec"]
+    APP["✅ Human Approval"]
+    DA["Stage 1 — Data Acquirer\nSonnet · downloads IC-IOT + employment"]
+    DP["Stage 2 — Data Preparer\nHaiku · CSVs → Z, e, x, Em matrices"]
+    MB["Stage 3 — Model Builder\nDeterministic · A and L matrices"]
+    DC["Stage 4 — Decomposer\nDeterministic · domestic + spillover"]
+    OP["Stage 5 — Output Producer\nSonnet · tables and figures"]
+    RV["Stage 6 — Reviewer\nSonnet · validates benchmarks"]
 
-    %% ── Pipeline stages ─────────────────────────────────────────
-    PA["Stage 0 · Paper Analyst
-    Claude Opus · single LLM call
-    Reads PDF, extracts full spec
-    → replication_spec.yaml"]
-
-    APP["✅ Human Approval
-    Review & edit spec
-    before any data is downloaded"]
-
-    DA["Stage 1 · Data Acquirer
-    Claude Sonnet · agentic loop
-    Downloads IC-IOT tables + employment
-    → data/raw/"]
-
-    DP["Stage 2 · Data Preparer
-    Claude Haiku · single-shot codegen
-    Parses CSVs into analysis matrices
-    → Z, e, x, Em  (data/prepared/)"]
-
-    MB["Stage 3 · Model Builder
-    ⚡ Deterministic
-    A = Z·diag(x)⁻¹   L = (I−A)⁻¹
-    → data/model/"]
-
-    DC["Stage 4 · Decomposer
-    ⚡ Deterministic
-    Domestic & spillover employment
-    → data/decomposition/"]
-
-    OP["Stage 5 · Output Producer
-    Claude Sonnet · agentic loop
-    Generates tables & figures
-    → outputs/"]
-
-    RV["Stage 6 · Reviewer
-    ⚡ Deterministic + Claude Sonnet
-    Validates against spec benchmarks
-    → outputs/review_report.md"]
-
-    %% ── Edges ───────────────────────────────────────────────────
     CONFIG --> PA
     PDF --> PA
     PA --> APP
-    SPEC -.->|"--spec flag (skips Stage 0)"| APP
+    SPEC -.->|skip Stage 0| APP
     APP --> DA
     DA --> DP
     DP --> MB
@@ -72,15 +32,13 @@ flowchart TD
     DC --> OP
     OP --> RV
 
-    %% ── Legend nodes ─────────────────────────────────────────────
     subgraph KEY ["Legend"]
         direction LR
-        K1["  General inputs  "]
-        K2["  Project-specific inputs  "]
-        K3["  AI agent / pipeline tool  "]
+        K1["General inputs"]
+        K2["Project-specific inputs"]
+        K3["AI agent / pipeline tool"]
     end
 
-    %% ── Styles ───────────────────────────────────────────────────
     classDef generalInput fill:#4A90D9,stroke:#2171B5,color:#fff
     classDef projectInput fill:#52B788,stroke:#2D6A4F,color:#fff
     classDef agentTool fill:#FF9F1C,stroke:#C87000,color:#000
