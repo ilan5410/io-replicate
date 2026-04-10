@@ -8,10 +8,13 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from rich.console import Console
+from rich.panel import Panel
 
 from agents.state import PipelineState
 
 log = logging.getLogger("decomposer")
+_console = Console()
 
 
 def decomposer_node(state: PipelineState) -> dict:
@@ -22,6 +25,12 @@ def decomposer_node(state: PipelineState) -> dict:
     prepared_paths = state["prepared_data_paths"]
     decomp_dir = run_dir / "data" / "decomposition"
     decomp_dir.mkdir(parents=True, exist_ok=True)
+
+    _console.print(Panel(
+        "[bold]Stage 4 — Decomposer[/bold]  (deterministic)\n"
+        "Domestic / spillover / direct / indirect employment decomposition",
+        style="blue"
+    ))
 
     eu_countries = [e["code"] for e in spec["geography"]["analysis_entities"]]
     cpa_codes = [i["code"] for i in spec["classification"]["industry_list"]]
@@ -67,6 +76,7 @@ def decomposer_node(state: PipelineState) -> dict:
         paths["industry_figure3"] = str(p)
 
     log.info(f"Decomposition outputs saved to {decomp_dir}")
+    _console.print(f"[green]✓[/green] Stage 4 complete — {len(paths)} decomposition files saved")
     return {
         "decomposition_paths": paths,
         "decomposition_valid": True,

@@ -5,6 +5,9 @@ Produces all tables and figures specified in replication_spec.outputs.
 import logging
 from pathlib import Path
 
+from rich.console import Console
+from rich.panel import Panel
+
 from agents.agent_runner import run_agent_loop
 from agents.llm import get_llm
 from agents.prompts import OUTPUT_PRODUCER_SYSTEM_PROMPT
@@ -13,6 +16,7 @@ from agents.tools import make_execute_python_tool, read_file, write_file, list_f
 
 log = logging.getLogger("output_producer")
 MAX_ITERATIONS = 15  # write script + execute + fix if needed, per output item
+_console = Console()
 
 
 def output_producer_node(state: PipelineState) -> dict:
@@ -20,6 +24,14 @@ def output_producer_node(state: PipelineState) -> dict:
     run_dir = Path(state["run_dir"])
     config = state["config"]
     spec = state["replication_spec"]
+
+    n_tables = len(spec["outputs"].get("tables", []))
+    n_figures = len(spec["outputs"].get("figures", []))
+    _console.print(Panel(
+        f"[bold]Stage 5 — Output Producer[/bold]\n"
+        f"Generating {n_tables} tables and {n_figures} figures",
+        style="blue"
+    ))
 
     outputs_dir = run_dir / "outputs"
     (outputs_dir / "tables").mkdir(parents=True, exist_ok=True)

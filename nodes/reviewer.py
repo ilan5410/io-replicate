@@ -15,6 +15,8 @@ import re
 from pathlib import Path
 
 import yaml as _yaml
+from rich.console import Console
+from rich.panel import Panel
 
 from agents.llm import get_llm
 from agents.state import PipelineState
@@ -25,6 +27,7 @@ from agents.validators.benchmark_validator import (
 )
 
 log = logging.getLogger("reviewer")
+_console = Console()
 
 
 def reviewer_node(state: PipelineState) -> dict:
@@ -34,6 +37,13 @@ def reviewer_node(state: PipelineState) -> dict:
     spec = state["replication_spec"]
     run_id = state.get("run_id", run_dir.name)
 
+    n_benchmarks = len(spec.get("benchmarks", {}).get("values", []))
+    _console.print(Panel(
+        f"[bold]Stage 6 — Reviewer[/bold]\n"
+        f"Deterministic benchmark checks ({n_benchmarks} values) + LLM interpretation",
+        style="blue"
+    ))
+
     outputs_dir = run_dir / "outputs"
     outputs_dir.mkdir(parents=True, exist_ok=True)
     report_path = outputs_dir / "review_report.md"
@@ -41,17 +51,21 @@ def reviewer_node(state: PipelineState) -> dict:
     decomp_dir = run_dir / "data" / "decomposition"
 
     # ── Phase 1: deterministic benchmark checks ────────────────────────────────
+    _console.print("  Running deterministic benchmark checks...")
     bm_results = run_benchmark_checks(spec, decomp_dir)
     n_pass, n_warn, n_fail, n_unverified = summarize(bm_results)
     log.info(f"Benchmark checks: PASS={n_pass} WARN={n_warn} FAIL={n_fail} UNVERIFIED={n_unverified}")
+    _console.print(f"  Benchmarks: [green]{n_pass} PASS[/green]  [yellow]{n_warn} WARN[/yellow]  [red]{n_fail} FAIL[/red]  {n_unverified} unverified")
 
     # ── Phase 2: single LLM call for interpretation ────────────────────────────
+    _console.print("  Generating LLM interpretation...")
     interpretation = _get_interpretation(bm_results, spec, config)
 
     # ── Phase 3: assemble and write report ────────────────────────────────────
     report_md = _build_report(spec, run_id, bm_results, interpretation)
     report_path.write_text(report_md)
     log.info(f"Review report written to {report_path}")
+    _console.print(f"[green]✓[/green] Stage 6 complete — report: {report_path}")
 
     # Pass only when: no failures AND at least one benchmark was actually verified.
     # All-UNVERIFIED means decomposition outputs are missing — that is not a pass.

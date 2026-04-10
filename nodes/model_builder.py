@@ -10,10 +10,13 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from rich.console import Console
+from rich.panel import Panel
 
 from agents.state import PipelineState
 
 log = logging.getLogger("model_builder")
+_console = Console()
 
 
 def model_builder_node(state: PipelineState) -> dict:
@@ -31,6 +34,11 @@ def model_builder_node(state: PipelineState) -> dict:
     cpa_codes = [i["code"] for i in spec["classification"]["industry_list"]]
     N = len(eu_countries) * len(cpa_codes)
 
+    _console.print(Panel(
+        f"[bold]Stage 3 — Model Builder[/bold]  (deterministic)\n"
+        f"Building A and L matrices — {len(eu_countries)} countries × {len(cpa_codes)} industries = {N:,} cells",
+        style="blue"
+    ))
     log.info(f"Model Builder: {len(eu_countries)} countries × {len(cpa_codes)} industries = {N}")
 
     # Load prepared matrices
@@ -43,15 +51,22 @@ def model_builder_node(state: PipelineState) -> dict:
     em_EU = pd.read_csv(prepared_paths["Em_EU"])["em_EU_THS_PER"].values.astype(np.float64)
 
     # Build model
+    _console.print("  Computing technical coefficients (A)...")
     A = _build_technical_coefficients(Z_EU, x_EU)
+    _console.print("  Computing Leontief inverse (L = (I-A)⁻¹)...")
     L = _build_leontief_inverse(A)
     d = _build_employment_coefficients(x_EU, em_EU)
 
     # Compute employment content
+    _console.print("  Computing employment content of exports...")
     results = _compute_employment_content(d, L, e_nonEU, eu_countries, cpa_codes)
 
     # Run validation checks
     checks = _validate_model(A, L)
+    _console.print(
+        f"[green]✓[/green] Stage 3 complete — "
+        f"EU export employment: {results['em_exports_total'].sum():,.0f} thousand persons"
+    )
 
     # Save outputs
     row_labels = [f"{c}_{p}" for c in eu_countries for p in cpa_codes]

@@ -5,6 +5,9 @@ Reads data_sources from spec, writes + executes download scripts.
 import logging
 from pathlib import Path
 
+from rich.console import Console
+from rich.panel import Panel
+
 from agents.agent_runner import run_agent_loop
 from agents.llm import get_llm
 from agents.prompts import DATA_ACQUIRER_SYSTEM_PROMPT
@@ -12,6 +15,7 @@ from agents.state import PipelineState
 from agents.tools import make_execute_python_tool, read_file, write_file, list_files
 
 log = logging.getLogger("data_acquirer")
+_console = Console()
 MAX_ITERATIONS = 20  # write download script + execute + fix if needed
 
 
@@ -20,6 +24,14 @@ def data_acquirer_node(state: PipelineState) -> dict:
     run_dir = Path(state["run_dir"])
     config = state["config"]
     spec = state["replication_spec"]
+
+    n_countries = len(spec["geography"]["analysis_entities"])
+    _console.print(Panel(
+        f"[bold]Stage 1 — Data Acquirer[/bold]\n"
+        f"Downloading IC-IOT tables + employment for {n_countries} countries\n"
+        f"[dim]Expected: ~30 min (one API request per country)[/dim]",
+        style="blue"
+    ))
 
     raw_dir = run_dir / "data" / "raw"
     raw_dir.mkdir(parents=True, exist_ok=True)
@@ -66,6 +78,8 @@ def data_acquirer_node(state: PipelineState) -> dict:
     with open(manifest_path) as f:
         data_manifest = _yaml2.safe_load(f) or {}
     log.info(f"Data manifest loaded: {list(data_manifest.keys())}")
+    n_files = sum(len(v) if isinstance(v, list) else 1 for v in data_manifest.values())
+    _console.print(f"[green]✓[/green] Stage 1 complete — manifest: {list(data_manifest.keys())} ({n_files} entries)")
 
     return {
         "data_manifest": data_manifest,

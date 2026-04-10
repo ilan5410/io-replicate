@@ -11,6 +11,8 @@ import time
 from pathlib import Path
 
 import yaml as _yaml
+from rich.console import Console
+from rich.panel import Panel
 
 from agents.llm import get_llm
 from agents.state import PipelineState
@@ -18,6 +20,7 @@ from agents.tools import make_execute_python_tool
 from agents.validators import validate_prepared_data
 
 log = logging.getLogger("data_preparer")
+_console = Console()
 MAX_FIX_ATTEMPTS = 3   # LLM calls to fix a failing script
 
 
@@ -27,6 +30,13 @@ def data_preparer_node(state: PipelineState) -> dict:
     config = state["config"]
     spec = state["replication_spec"]
     retry_count = state.get("retry_count", 0)
+
+    _console.print(Panel(
+        f"[bold]Stage 2 — Data Preparer[/bold]  (attempt {retry_count + 1})\n"
+        f"Single-shot codegen: Haiku writes a parse script, then it runs deterministically\n"
+        f"[dim]Input: data/raw/   →   Output: Z, e, x, Em matrices in data/prepared/[/dim]",
+        style="blue"
+    ))
 
     prepared_dir = run_dir / "data" / "prepared"
     prepared_dir.mkdir(parents=True, exist_ok=True)
@@ -52,14 +62,17 @@ def data_preparer_node(state: PipelineState) -> dict:
 
     # Single LLM call → script → execute → optionally fix
     llm = get_llm("data_preparer", config)
+    _console.print("  Generating parse script with Haiku...")
     script_code = _generate_script(llm, prompt)
 
     script_name = f"prepare_data_attempt{retry_count + 1}"
+    _console.print(f"  Executing [bold]{script_name}.py[/bold] ...")
     result = execute_python.invoke({"script_content": script_code, "script_name": script_name})
 
     if not result.get("success", False):
         stderr = result.get("stderr", "")[:3000]
         stdout = result.get("stdout", "")[:1000]
+        _console.print(f"  [red]✗[/red] Script failed (rc={result.get('returncode')}) — generating fix...")
         log.warning(f"Script failed (returncode {result.get('returncode')}). Attempting fix...")
 
         # One fix call — starts fresh, only needs the error context
@@ -72,12 +85,16 @@ def data_preparer_node(state: PipelineState) -> dict:
             spec_str=spec_str,
         )
         fixed_script = _generate_script(llm, fix_prompt)
+        _console.print(f"  Executing [bold]{script_name}_fixed.py[/bold] ...")
         result = execute_python.invoke({
             "script_content": fixed_script,
             "script_name": f"{script_name}_fixed",
         })
         if not result.get("success", False):
+            _console.print(f"  [red]✗[/red] Fixed script also failed")
             log.warning(f"Fixed script also failed: {result.get('stderr', '')[:500]}")
+        else:
+            _console.print(f"  [green]✓[/green] Fixed script succeeded")
 
     # Build prepared_data_paths
     prepared_data_paths = {
@@ -89,9 +106,13 @@ def data_preparer_node(state: PipelineState) -> dict:
     }
 
     # Deterministic validation
+    _console.print("  Running deterministic validation...")
     is_valid, errors = validate_prepared_data(prepared_data_paths, spec)
 
-    if not is_valid:
+    if is_valid:
+        _console.print("[green]✓[/green] Stage 2 complete — matrices validated")
+    else:
+        _console.print(f"[red]✗[/red] Validation FAILED (attempt {retry_count + 1}): {errors[:3]}")
         log.warning(f"Preparation validation FAILED (attempt {retry_count + 1}): {errors}")
 
     return {
