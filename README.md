@@ -2,21 +2,107 @@
 
 Generic multi-agent system for replicating Input-Output economics papers.
 
-Given a paper PDF (or a hand-crafted spec), it runs a 7-stage LangGraph pipeline: data acquisition → Leontief model → decomposition → outputs → review. Paper-specific knowledge lives entirely in a `replication_spec.yaml`; the agents are generic IO analysis tools. The same pipeline can replicate any IO paper — not just FIGARO.
+Given a paper PDF (or a hand-crafted spec), it runs a 7-stage pipeline: data acquisition → Leontief model → decomposition → outputs → review. Paper-specific knowledge lives entirely in a `replication_spec.yaml`; the agents are generic IO analysis tools. The same pipeline can replicate any IO paper — not just FIGARO.
+
+## Pipeline Workflow
+
+```mermaid
+flowchart TD
+    %% ── General inputs ──────────────────────────────────────────
+    CONFIG["⚙️ config.yaml
+    LLM routing · API key env vars
+    Cost limits · Model temperatures"]
+
+    %% ── Project-specific inputs ─────────────────────────────────
+    PDF["📄 Paper PDF
+    optional"]
+    SPEC["📋 replication_spec.yaml
+    Geography · Industries
+    Data sources · Benchmarks"]
+
+    %% ── Pipeline stages ─────────────────────────────────────────
+    PA["Stage 0 · Paper Analyst
+    Claude Opus · single LLM call
+    Reads PDF, extracts full spec
+    → replication_spec.yaml"]
+
+    APP["✅ Human Approval
+    Review & edit spec
+    before any data is downloaded"]
+
+    DA["Stage 1 · Data Acquirer
+    Claude Sonnet · agentic loop
+    Downloads IC-IOT tables + employment
+    → data/raw/"]
+
+    DP["Stage 2 · Data Preparer
+    Claude Haiku · single-shot codegen
+    Parses CSVs into analysis matrices
+    → Z, e, x, Em  (data/prepared/)"]
+
+    MB["Stage 3 · Model Builder
+    ⚡ Deterministic
+    A = Z·diag(x)⁻¹   L = (I−A)⁻¹
+    → data/model/"]
+
+    DC["Stage 4 · Decomposer
+    ⚡ Deterministic
+    Domestic & spillover employment
+    → data/decomposition/"]
+
+    OP["Stage 5 · Output Producer
+    Claude Sonnet · agentic loop
+    Generates tables & figures
+    → outputs/"]
+
+    RV["Stage 6 · Reviewer
+    ⚡ Deterministic + Claude Sonnet
+    Validates against spec benchmarks
+    → outputs/review_report.md"]
+
+    %% ── Edges ───────────────────────────────────────────────────
+    CONFIG --> PA
+    PDF --> PA
+    PA --> APP
+    SPEC -.->|"--spec flag (skips Stage 0)"| APP
+    APP --> DA
+    DA --> DP
+    DP --> MB
+    MB --> DC
+    DC --> OP
+    OP --> RV
+
+    %% ── Legend nodes ─────────────────────────────────────────────
+    subgraph KEY ["Legend"]
+        direction LR
+        K1["  General inputs  "]
+        K2["  Project-specific inputs  "]
+        K3["  AI agent / pipeline tool  "]
+    end
+
+    %% ── Styles ───────────────────────────────────────────────────
+    classDef generalInput  fill:#4A90D9,stroke:#2171B5,color:#fff
+    classDef projectInput  fill:#52B788,stroke:#2D6A4F,color:#fff
+    classDef agentTool     fill:#FF9F1C,stroke:#C87000,color:#000
+
+    class CONFIG,K1        generalInput
+    class PDF,SPEC,K2      projectInput
+    class PA,APP,DA,DP,MB,DC,OP,RV,K3 agentTool
+```
 
 ## Pipeline overview
 
-| Stage | Type | Model | Role | Time |
-|-------|------|-------|------|------|
-| 0 — Paper Analyst | Single LLM call | Claude Opus | PDF → `replication_spec.yaml` | ~1 min |
-| 1 — Data Acquirer | Agentic | GPT-4o-mini | Download raw IO tables + satellite data | ~30 min |
-| 2 — Data Preparer | Agentic + validator | Claude Sonnet | Parse → Z, e, x, Em matrices | ~3 min |
-| 3 — Model Builder | **Deterministic** | — | A, L, d, employment content | ~10 s |
-| 4 — Decomposer | **Deterministic** | — | Domestic/spillover, direct/indirect | ~2 s |
-| 5 — Output Producer | Agentic | GPT-4o-mini | Tables + figures from spec | ~1 min |
-| 6 — Reviewer | Deterministic + single LLM call | Claude Sonnet | Benchmark validation → `review_report.md` | ~10 s |
+| Stage | Type | Model | Role | Output |
+|-------|------|-------|------|--------|
+| 0 — Paper Analyst | Single LLM call | Claude Opus | PDF → `replication_spec.yaml` | `replication_spec.yaml` |
+| 1 — Data Acquirer | Agentic loop | Claude Sonnet | Download raw IO tables + satellite data | `data/raw/` |
+| 2 — Data Preparer | Single-shot codegen | Claude Haiku | Parse → Z, e, x, Em matrices | `data/prepared/` |
+| 3 — Model Builder | **Deterministic** | — | A, L, d, employment content | `data/model/` |
+| 4 — Decomposer | **Deterministic** | — | Domestic/spillover, direct/indirect | `data/decomposition/` |
+| 5 — Output Producer | Agentic loop | Claude Sonnet | Tables + figures from spec | `outputs/` |
+| 6 — Reviewer | Deterministic + single LLM call | Claude Sonnet | Benchmark validation | `outputs/review_report.md` |
 
-**Typical cost per full run:** ~$1–2. Worst case (all retries): ~$8.
+**Typical cost per full run:** ~$2–4. Stage 0 (Opus) ~$1, Stage 1 (Sonnet agentic) ~$1, Stage 2 (Haiku single-shot) ~$0.10.
 
 ## Setup
 
@@ -25,9 +111,11 @@ git clone https://github.com/ilan5410/io-replicate
 cd io-replicate
 pip install -e .
 
-export ANTHROPIC_API_KEY=sk-ant-...   # required for stages 0, 2, 6
-export OPENAI_API_KEY=sk-...          # required for stages 1, 5 (falls back to Sonnet if absent)
+export ANTHROPIC_API_KEY=sk-ant-...   # required for all stages
+export OPENAI_API_KEY=sk-...          # optional — only needed if routing stages to GPT models
 ```
+
+**Note on Python version:** All stages default to Anthropic. If you want to use `openai/gpt-4o-mini` for stages 1 and 5 (cheaper), use Python 3.10–3.12 — `langchain-openai` has serialization issues on Python 3.14+.
 
 Dependencies: `langchain-anthropic`, `langchain-openai`, `langgraph`, `numpy`, `pandas`, `pyyaml`, `click`, `rich`. All pinned in `requirements.txt`.
 
@@ -47,7 +135,7 @@ The run directory is printed at startup (e.g. `runs/20260401_120000`). All inter
 
 ### Stages 1–2 only (data download + preparation)
 
-There is no `--stop-stage` flag — the full pipeline runs sequentially. Stages 1–2 are the expensive ones (~30 min + ~3 min). Stages 3–6 are fast (< 2 min total) so it is usually easiest to just run everything:
+There is no `--stop-stage` flag — the full pipeline runs sequentially. Stages 1–2 are the expensive ones (~30 min + ~3 min). Stages 3–6 are fast (< 2 min total).
 
 ```bash
 io-replicate run --spec specs/figaro_2019/replication_spec.yaml --auto-approve
@@ -66,9 +154,9 @@ python run_deterministic.py \
 ### Resume from a specific stage
 
 ```bash
-# Resume an existing run from stage 3 onwards (data already downloaded)
+# Resume an existing run from stage 2 onwards (data already downloaded)
 io-replicate run --spec specs/figaro_2019/replication_spec.yaml \
-                 --start-stage 3 --auto-approve
+                 --start-stage 2 --auto-approve
 
 # Run only the reviewer on an existing run
 io-replicate run --spec specs/figaro_2019/replication_spec.yaml \
@@ -172,6 +260,7 @@ Benchmarks with a `source` are checked deterministically (no LLM, free, reproduc
 - **Message trimming**: sliding window keeps the last 40 messages; never drops the system prompt or first user message.
 - **Read caps**: `read_file` is capped at 5,000 chars; large matrix files (Z_EU, L_EU, A_EU, .npy) are blocked entirely.
 - **Temperature**: set per-agent in `config.yaml` under `llm.temperatures` (reviewer defaults to 0.0 for reproducibility).
+- **Single-shot stages**: Stage 2 (Data Preparer) uses one LLM call to generate the parse script rather than an agentic loop, reducing cost from ~$3 to ~$0.10.
 
 ## Configuration
 
@@ -179,14 +268,15 @@ Benchmarks with a `source` are checked deterministically (no LLM, free, reproduc
 # config.yaml
 llm:
   routing:
-    paper_analyst: anthropic/claude-opus-4-6
-    data_acquirer:  openai/gpt-4o-mini
-    data_preparer:  anthropic/claude-sonnet-4-6
-    output_producer: openai/gpt-4o-mini
+    paper_analyst:  anthropic/claude-opus-4-6
+    data_acquirer:  anthropic/claude-sonnet-4-6
+    data_preparer:  anthropic/claude-haiku-4-5-20251001
+    output_producer: anthropic/claude-sonnet-4-6
     reviewer:       anthropic/claude-sonnet-4-6
   temperatures:
     reviewer: 0.0
     paper_analyst: 0.2
+  paper_analyst_max_tokens: 16000  # raise if spec is truncated
 
 pipeline:
   max_retries: 3

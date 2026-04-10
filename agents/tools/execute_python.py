@@ -15,7 +15,11 @@ def make_execute_python_tool(run_dir: str):
     """
     Factory that returns a tool bound to the current run's directory.
     """
-    scripts_dir = Path(run_dir) / "generated_scripts"
+    # Resolve run_dir to an absolute path immediately so that all derived
+    # paths are absolute — this prevents the "doubled path" bug that occurs
+    # when run_dir is relative and cwd is also set to it.
+    run_dir_abs = Path(run_dir).resolve()
+    scripts_dir = run_dir_abs / "generated_scripts"
     scripts_dir.mkdir(parents=True, exist_ok=True)
 
     @tool
@@ -43,11 +47,11 @@ def make_execute_python_tool(run_dir: str):
         safe_env = {k: v for k, v in os.environ.items() if k not in _SECRET_KEYS}
 
         result = subprocess.run(
-            ["python3", str(script_path)],
+            ["python3", str(script_path)],   # script_path is absolute → no doubling
             capture_output=True,
             text=True,
             timeout=3600,  # 1 hour — data downloads for 29+ countries take ~30 min
-            cwd=str(Path(run_dir)),
+            cwd=str(run_dir_abs),            # absolute cwd
             env=safe_env,
         )
 
