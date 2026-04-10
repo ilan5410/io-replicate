@@ -192,8 +192,9 @@ def build_graph_from_stage(start_stage: int, only_stage: str = None, **kwargs):
 
     start_node = _STAGE_TO_NODE[start_stage]
 
-    # For stages 0-2, use the full graph — they need the setup nodes
-    if start_stage <= 2:
+    # Stages 0 and 1 need the full graph (paper_analyst → human_approval → data_acquirer…)
+    # Stage 2 (data_preparer) can be built as a trimmed graph like 3-6.
+    if start_stage <= 1:
         return build_graph(**kwargs)
 
     # For stages 3-6, build a trimmed graph starting at the requested node

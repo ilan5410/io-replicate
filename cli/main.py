@@ -51,11 +51,14 @@ def cli():
               help="Path to infrastructure config (default: config.yaml).")
 @click.option("--start-stage", type=int, default=None,
               help="Resume from this stage (0-6). Requires --spec.")
+@click.option("--run-dir", type=click.Path(), default=None,
+              help="Reuse an existing run directory (e.g. runs/20260401_093323). "
+                   "Required with --start-stage 2+ so raw data is available.")
 @click.option("--only", type=str, default=None,
               help="Run only this stage node (e.g. 'reviewer').")
 @click.option("--auto-approve", is_flag=True, default=False,
               help="Skip the human spec approval checkpoint (non-interactive mode).")
-def run(paper, spec, config, start_stage, only, auto_approve):
+def run(paper, spec, config, start_stage, run_dir, only, auto_approve):
     """Replicate an IO paper end-to-end or resume from a stage."""
     if not paper and not spec:
         console.print("[red]ERROR:[/red] Provide either --paper or --spec.")
@@ -76,12 +79,20 @@ def run(paper, spec, config, start_stage, only, auto_approve):
     # Check API keys before doing anything — fail fast with a clear message
     _check_api_keys(cfg, start_stage if start_stage is not None else 0)
 
-    # Set up run directory
-    run_id = time.strftime("%Y%m%d_%H%M%S")
+    # Set up run directory — reuse existing if --run-dir provided, otherwise create fresh
     runs_dir = Path(cfg.get("pipeline", {}).get("runs_dir", "runs"))
-    run_dir = runs_dir / run_id
-    run_dir.mkdir(parents=True, exist_ok=True)
-    console.print(f"[bold]Run ID:[/bold] {run_id}")
+    if run_dir:
+        run_dir = Path(run_dir)
+        if not run_dir.exists():
+            console.print(f"[red]ERROR:[/red] --run-dir '{run_dir}' does not exist.")
+            sys.exit(1)
+        run_id = run_dir.name
+        console.print(f"[bold]Run ID:[/bold] {run_id} (reusing existing run directory)")
+    else:
+        run_id = time.strftime("%Y%m%d_%H%M%S")
+        run_dir = runs_dir / run_id
+        run_dir.mkdir(parents=True, exist_ok=True)
+        run_id = run_dir.name
     console.print(f"[bold]Run directory:[/bold] {run_dir}")
 
     # Import here to avoid slow startup when just running --help
