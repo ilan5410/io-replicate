@@ -25,11 +25,10 @@ def data_acquirer_node(state: PipelineState) -> dict:
     config = state["config"]
     spec = state["replication_spec"]
 
-    n_countries = len(spec["geography"]["analysis_entities"])
     _console.print(Panel(
-        f"[bold]Stage 1 — Data Acquirer[/bold]\n"
-        f"Downloading IC-IOT tables + employment for {n_countries} countries\n"
-        f"[dim]Expected: ~30 min (one API request per country)[/dim]",
+        "[bold]Stage 1 — Data Acquirer[/bold]\n"
+        "Bulk downloading IC-IOT + employment from Eurostat (2 requests, all countries)\n"
+        "[dim]Expected: ~2-3 min total[/dim]",
         style="blue"
     ))
 

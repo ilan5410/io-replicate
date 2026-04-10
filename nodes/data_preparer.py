@@ -151,24 +151,25 @@ def _minimal_spec(spec: dict) -> dict:
 
 
 def _build_data_preview(raw_dir: Path) -> str:
+    """Sample the first few rows of the bulk TSV files so the LLM sees actual column values."""
     try:
         import pandas as pd
-        lines = ["## Data Preview (actual column values)\n"]
+        lines = ["## Data Preview (actual file contents)\n"]
 
-        iot_files = sorted((raw_dir / "ic_iot").glob("*.csv"))
-        if iot_files:
-            df = pd.read_csv(iot_files[0], nrows=3)
-            lines.append(f"IC-IOT ({iot_files[0].name}) first 3 rows:")
+        iot_path = raw_dir / "naio_10_fcp_ip1.tsv.gz"
+        if iot_path.exists():
+            df = pd.read_csv(iot_path, sep='\t', compression='gzip', dtype=str, nrows=3)
+            lines.append(f"IC-IOT bulk TSV — first 3 rows:")
             lines.append(df.to_string(index=False))
-            lines.append(f"  prd_ava sample: {df['prd_ava'].unique()[:2].tolist()}")
-            lines.append(f"  c_dest sample: {df['c_dest'].unique()[:4].tolist()}")
+            lines.append(f"  Key column name: {repr(df.columns[0])}")
+            lines.append(f"  Year columns sample: {[c for c in df.columns[1:5]]}")
 
-        emp_files = sorted((raw_dir / "employment").glob("*.csv"))
-        if emp_files:
-            df = pd.read_csv(emp_files[0], nrows=3)
-            lines.append(f"\nEmployment ({emp_files[0].name}) first 3 rows:")
+        emp_path = raw_dir / "nama_10_a64_e.tsv.gz"
+        if emp_path.exists():
+            df = pd.read_csv(emp_path, sep='\t', compression='gzip', dtype=str, nrows=3)
+            lines.append(f"\nEmployment bulk TSV — first 3 rows:")
             lines.append(df.to_string(index=False))
-            lines.append(f"  nace_r2 sample: {df['nace_r2'].unique()[:3].tolist()}")
+            lines.append(f"  Key column name: {repr(df.columns[0])}")
 
         return "\n".join(lines)
     except Exception as e:
@@ -220,7 +221,7 @@ def _build_prompt(
     return f"""You are writing a Python data preparation script for an IO economics replication pipeline.
 
 ## Task
-Write a complete Python script that parses raw Eurostat data into analysis-ready matrices.
+Write a complete Python script that parses raw Eurostat bulk-TSV data into analysis-ready matrices.
 
 ## Paths (use these exact absolute paths)
 - raw_dir = "{raw_dir}"
@@ -240,45 +241,100 @@ Write a complete Python script that parses raw Eurostat data into analysis-ready
 
 {data_preview}
 
-## Data format — CRITICAL
-IC-IOT CSVs (one per origin country in raw_dir/ic_iot/): columns are `freq, prd_use, prd_ava, c_dest, unit, c_orig, time, value`
-- `prd_ava` and `prd_use` contain FULL TEXT LABELS matching spec `industry_list[i]['label']` (NOT CPA codes)
-- `c_orig` and `c_dest` contain FULL COUNTRY NAMES matching spec `analysis_entities[j]['name']` (NOT ISO codes)
-- `value` is float MIO_EUR (may be NaN — treat as 0)
-- Final demand labels in prd_use: "Final consumption expenditure by government", "Final consumption expenditure by households", "Final consumption expenditure by non-profit organisations", "Gross capital formation", "Exports of goods and services"
-- Value-added rows in prd_ava (exclude from Z matrix): rows NOT in industry_list labels
+## Input files
+- `raw_dir/naio_10_fcp_ip1.tsv.gz` — full IC-IOT table, all countries, gzip-compressed TSV
+- `raw_dir/nama_10_a64_e.tsv.gz` — full employment table, all countries, gzip-compressed TSV
 
-Employment CSVs (one per country in raw_dir/employment/): columns `freq, unit, nace_r2, na_item, geo, time, value`
-- `nace_r2` is NACE activity LABEL (not code), `geo` is country NAME
-- `value` is thousand persons (may be NaN)
-- Use only leaf-level entries (individual activities, not "Total - all NACE activities" etc.)
-- Map NACE labels to CPA labels using best-effort label matching against industry_list
+## IC-IOT TSV format — CRITICAL
 
-## Matrix construction
-Build label→index mappings from spec:
-```python
-label_to_idx = {{item['label']: i for i, item in enumerate(spec['industry_list'])}}
-name_to_idx  = {{e['name']: i for i, e in enumerate(spec['analysis_entities'])}}
-eu_names     = [e['name'] for e in spec['analysis_entities']]
-ext_names    = [e['name'] for e in spec['external_entities']]
-N = n_countries * n_industries
+The file is a **wide-format** TSV where the first column packs multiple dimensions as a comma-separated string, and the remaining columns are year values.
+
+**Header row example:**
+```
+freq,prd_use,prd_ava,c_dest,unit,c_orig\\TIME_PERIOD\t2010 \t2011 \t2012 \t2013
 ```
 
-For Z_EU: filter rows where c_orig IN eu_names AND c_dest IN eu_names AND prd_ava IN label_to_idx AND prd_use IN label_to_idx.
-For e_nonEU: EU→non-EU intermediate flows (c_orig IN eu_names, c_dest IN ext_names, prd_ava IN eu industries) + intra-EU final demand flows.
-For x_EU: sum all outflows from each EU country-industry (all c_dest, all uses including value-added rows).
+**Data row example:**
+```
+A,CPA_A01,CPA_A01,AT,MIO_EUR,AT\t123.45 \t456.78
+```
+
+**Parsing pattern:**
+```python
+import pandas as pd, numpy as np, json, os, gzip
+
+df = pd.read_csv(f"{{raw_dir}}/naio_10_fcp_ip1.tsv.gz", sep='\\t', compression='gzip', dtype=str)
+key_col = df.columns[0]   # 'freq,prd_use,prd_ava,c_dest,unit,c_orig\\TIME_PERIOD'
+split = df[key_col].str.split(',', expand=True)
+split.columns = ['freq', 'prd_use', 'prd_ava', 'c_dest', 'unit', 'c_orig']
+df = pd.concat([split, df.drop(columns=[key_col])], axis=1)
+
+# Year columns have trailing spaces — find the reference year column
+year_col = next(c for c in df.columns if c.strip() == str(reference_year))
+
+# Extract value for target year, strip Eurostat flags ('b','e','p',':') and convert to float
+df['value'] = pd.to_numeric(
+    df[year_col].str.strip().str.replace(r'[^0-9.\\-]', '', regex=True),
+    errors='coerce'
+).fillna(0.0)
+```
+
+**Dimension values are CODES (not labels):**
+- `c_orig`, `c_dest`: ISO country codes — match spec `analysis_entities[i]['code']` (e.g. "AT", "BE")
+- `prd_ava`, `prd_use`: CPA codes — match spec `industry_list[i]['code']` (e.g. "CPA_A01", "CPA_B")
+- Value-added rows in `prd_ava` (exclude from Z): `B2A3G`, `D1`, `D21X31`, `D29X39`, `OP_NRES`, `OP_RES`
+- Final demand codes in `prd_use`: `P3_S13`, `P3_S14`, `P3_S15`, `P51G`, `P5M`
+- Filter: `unit == 'MIO_EUR'` only
+
+**Build code→index mappings from spec:**
+```python
+code_to_idx  = {{item['code']: i for i, item in enumerate(spec['industry_list'])}}
+ctry_to_idx  = {{e['code']: i for i, e in enumerate(spec['analysis_entities'])}}
+eu_codes     = [e['code'] for e in spec['analysis_entities']]
+ext_codes    = [e['code'] for e in spec['external_entities']]
+VA_ROWS      = {{'B2A3G', 'D1', 'D21X31', 'D29X39', 'OP_NRES', 'OP_RES'}}
+FD_COLS      = {{'P3_S13', 'P3_S14', 'P3_S15', 'P51G', 'P5M'}}
+```
+
+For Z_EU: rows where `c_orig IN eu_codes AND c_dest IN eu_codes AND prd_ava IN code_to_idx AND prd_use IN code_to_idx`.
+For e_nonEU: EU→non-EU intermediate (c_orig IN eu_codes, c_dest IN ext_codes, prd_ava in CPA industries) + intra-EU final demand (c_orig IN eu_codes, c_dest IN eu_codes, prd_use IN FD_COLS, prd_ava IN CPA industries).
+For x_EU: all rows where `c_orig IN eu_codes AND prd_ava IN code_to_idx`, summing over all `c_dest` and all `prd_use`.
+
+## Employment TSV format
+
+**Header:** `freq,unit,nace_r2,na_item,geo\\TIME_PERIOD\t1975 \t...\t2010 \t...`
+
+**Parsing pattern:**
+```python
+emp = pd.read_csv(f"{{raw_dir}}/nama_10_a64_e.tsv.gz", sep='\\t', compression='gzip', dtype=str)
+key_col = emp.columns[0]
+split = emp[key_col].str.split(',', expand=True)
+split.columns = ['freq', 'unit', 'nace_r2', 'na_item', 'geo']
+emp = pd.concat([split, emp.drop(columns=[key_col])], axis=1)
+
+year_col = next(c for c in emp.columns if c.strip() == str(reference_year))
+emp['value'] = pd.to_numeric(
+    emp[year_col].str.strip().str.replace(r'[^0-9.\\-]', '', regex=True),
+    errors='coerce'
+).fillna(0.0)
+
+# Filter to target unit and item
+emp = emp[(emp['unit'] == 'THS_PER') & (emp['na_item'] == 'EMP_DC')]
+emp = emp[emp['geo'].isin(eu_codes)]
+```
+
+**NACE codes** (`nace_r2`) are short codes like `A01`, `A02`, `B`, `C10-C12`. The spec provides a mapping in `classification.nace_to_cpa` (dict of nace_code → cpa_code) or use `industry_list` to build it. Sum multiple NACE codes that map to the same CPA code. Use leaf codes only (not aggregates like `A`, `B-E`, `C`).
 
 ## metadata.json format
 ```json
-{{"eu_countries": ["AT", ...], "cpa_codes": ["A01", ...], "n_countries": 28, "n_industries": 64, "n_total": 1792, "reference_year": 2010, "unit_Z": "MIO_EUR", "unit_x": "MIO_EUR", "unit_e": "MIO_EUR", "unit_Em": "THS_PER"}}
+{{"eu_countries": ["AT", ...], "cpa_codes": ["CPA_A01", ...], "n_countries": 28, "n_industries": 64, "n_total": 1792, "reference_year": 2010, "unit_Z": "MIO_EUR", "unit_x": "MIO_EUR", "unit_e": "MIO_EUR", "unit_Em": "THS_PER"}}
 ```
 
 ## Script requirements
 - All imports at top of script
-- Use absolute paths (raw_dir, prepared_dir) as given — do NOT use __file__ or relative navigation
+- Use absolute paths as given — do NOT use __file__ or relative navigation
 - `os.makedirs(prepared_dir, exist_ok=True)` at the start
-- Fill NaN values with 0
-- Print progress so failures are diagnosable
+- Print progress (rows loaded, matrix shapes) so failures are diagnosable
 - Save all 5 files before exiting{prior_section}
 
 Output ONLY the raw Python script — no prose, no markdown fences."""
