@@ -15,7 +15,7 @@ from agents.state import PipelineState
 from agents.tools import make_execute_python_tool, read_file, write_file, list_files
 
 log = logging.getLogger("output_producer")
-MAX_ITERATIONS = 15  # write script + execute + fix if needed, per output item
+MAX_ITERATIONS = 5  # 1 code-gen + 1 execute + 1 fix max
 _console = Console()
 
 
@@ -43,19 +43,39 @@ def output_producer_node(state: PipelineState) -> dict:
     system_prompt = OUTPUT_PRODUCER_SYSTEM_PROMPT.replace("{run_dir}", str(run_dir))
 
     import yaml as _yaml
+    import pandas as _pd
+
     outputs_spec_str = _yaml.dump({"outputs": spec["outputs"]}, default_flow_style=False)
-    schema_str = _yaml.dump({"output_schema": spec.get("output_schema", {})}, default_flow_style=False)
+
+    # Pre-load file previews so the agent never needs to call read_file/list_files
+    decomp_dir = run_dir / "data" / "decomposition"
+    prepared_dir = run_dir / "data" / "prepared"
+    file_previews = []
+    for search_dir in [decomp_dir, prepared_dir]:
+        if search_dir.exists():
+            for csv_path in sorted(search_dir.glob("*.csv")):
+                try:
+                    df_head = _pd.read_csv(csv_path, index_col=None, nrows=3)
+                    file_previews.append(
+                        f"### {csv_path.relative_to(run_dir)}\n"
+                        f"columns: {list(df_head.columns)}\n"
+                        f"{df_head.to_string(index=False, max_cols=8)}\n"
+                    )
+                except Exception:
+                    pass
+    previews_str = "\n".join(file_previews)
 
     initial_message = (
-        f"Produce all tables and figures specified in the outputs section.\n\n"
-        f"Decomposition data directory: {run_dir / 'data' / 'decomposition'}\n"
-        f"Prepared data directory: {run_dir / 'data' / 'prepared'}\n"
-        f"Output tables directory: {outputs_dir / 'tables'}\n"
-        f"Output figures directory: {outputs_dir / 'figures'}\n\n"
-        f"## Output schema (column names are MANDATORY — use verbatim):\n"
-        f"```yaml\n{schema_str}\n```\n\n"
-        f"## Outputs to produce:\n```yaml\n{outputs_spec_str}\n```\n\n"
-        f"EU countries (for labeling): {[e['code'] for e in spec['geography']['analysis_entities']]}\n"
+        f"Paths:\n"
+        f"- decomp: {decomp_dir}\n"
+        f"- prepared: {prepared_dir}\n"
+        f"- out_tables: {outputs_dir / 'tables'}\n"
+        f"- out_figures: {outputs_dir / 'figures'}\n\n"
+        f"Data files (all you need — do NOT call read_file or list_files):\n"
+        f"{previews_str}\n"
+        f"Outputs spec:\n```yaml\n{outputs_spec_str}\n```\n"
+        f"Countries: {[e['code'] for e in spec['geography']['analysis_entities']]}\n\n"
+        f"Write ONE script producing ALL outputs. Call execute_python now."
     )
 
     max_cost = config.get("pipeline", {}).get("max_cost_per_stage", 2.0)
