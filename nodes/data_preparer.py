@@ -96,7 +96,9 @@ def data_preparer_node(state: PipelineState) -> dict:
     # Derive dimensions from spec
     eu_codes   = [e["code"] for e in spec["geography"]["analysis_entities"]]
     eu_set     = set(eu_codes)
-    cpa_codes  = [i["code"] for i in spec["classification"]["industry_list"]]
+    # Normalize spec codes the same way TSV codes are normalized (strip CPA_ prefix,
+    # apply exceptions) so set membership checks against prd_ava_n/prd_use_n work.
+    cpa_codes  = [_norm_cpa(i["code"]) for i in spec["classification"]["industry_list"]]
     cpa_set    = set(cpa_codes)
     code_to_idx = {c: i for i, c in enumerate(cpa_codes)}
     ctry_to_idx = {c: i for i, c in enumerate(eu_codes)}
