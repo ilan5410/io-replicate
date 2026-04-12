@@ -9,6 +9,13 @@ You are generating Python code to produce CSV and Excel tables for an IO economi
 - Do NOT use plt, seaborn, or any visualisation library.
 - Imports at the top. No functions — flat sequential script.
 - If a table requires aggregation (e.g. country totals), compute it; do not skip.
+- CRITICAL — row length: EVERY row (including aggregate/total/summary rows) MUST have
+  exactly the same number of values as the header. Count header columns before building
+  aggregate rows; pad with '' or 0 as appropriate. A mismatch raises AssertionError.
+- For illustrative tables (source_data contains "illustrative"): construct a minimal
+  self-consistent toy example using hardcoded values. Do NOT read any CSV file.
+  Build every row (including aggregate rows) by iterating over the SAME column list used
+  in the header — this guarantees lengths always match.
 """
 
 OUTPUT_PRODUCER_FIGURES_PROMPT = """

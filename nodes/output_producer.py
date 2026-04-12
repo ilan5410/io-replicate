@@ -62,7 +62,11 @@ def output_producer_node(state: PipelineState) -> dict:
         tables_spec = yaml.dump(
             {"tables": spec["outputs"]["tables"]}, default_flow_style=False
         )
-        tables_msg = _user_message_tables(context, tables_spec, tables_dir)
+        illustrative_ids = [
+            t["id"] for t in spec["outputs"]["tables"]
+            if any("illustrative" in str(s).lower() for s in t.get("source_data", []))
+        ]
+        tables_msg = _user_message_tables(context, tables_spec, tables_dir, illustrative_ids)
         ok = _run_script_with_fix(
             llm_client, config, OUTPUT_PRODUCER_TABLES_PROMPT,
             tables_msg, run_dir, "generate_tables",
@@ -161,9 +165,16 @@ def _build_context(run_dir: Path, spec: dict) -> str:
 # User message builders
 # ---------------------------------------------------------------------------
 
-def _user_message_tables(context: str, tables_spec: str, tables_dir: Path) -> str:
+def _user_message_tables(context: str, tables_spec: str, tables_dir: Path, illustrative_ids: list[str]) -> str:
+    illustrative_note = ""
+    if illustrative_ids:
+        illustrative_note = (
+            f"\n## Illustrative tables (do NOT read CSV data)\n"
+            f"The following table IDs are methodological illustrations — "
+            f"construct them from hardcoded toy values only: {illustrative_ids}\n"
+        )
     return f"""{context}
-
+{illustrative_note}
 ## Tables to generate
 ```yaml
 {tables_spec}
