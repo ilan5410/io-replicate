@@ -48,7 +48,11 @@ For each output file:
 - key: a short logical name (e.g. country_decomposition, industry_table4)
 - file: the actual filename (e.g. country_decomposition.csv)
 - description: one sentence
-- key_column or index_column: which column identifies rows
+- key_column: the column that identifies rows (for tabular files like country_decomposition)
+- index_col: true if row labels ARE the pandas index — i.e. the file has no separate
+  identifier column and is loaded with index_col=0. Use this for industry-by-industry
+  matrices, bilateral trade matrices, or any file whose rows are labelled by the index.
+  Omit (or set false) for files with a regular key column.
 - columns: list of {name, type (str|float|int), unit (optional), description}
 
 Column names MUST match what Stage 5 will write. Use snake_case with a unit suffix
@@ -67,6 +71,18 @@ output_schema:
       - {name: total_by_country_THS, type: float, unit: thousands}
       - {name: domestic_effect_THS, type: float, unit: thousands}
       - {name: spillover_share_pct, type: float, unit: percent}
+  industry_table4:
+    file: industry_table4.csv
+    description: "One row per industry — employment supported by exports"
+    index_col: true        # ← row labels are the index (e.g. "B-E - Industry")
+    columns:
+      - {name: direct_THS, type: float, unit: thousands}
+      - {name: indirect_THS, type: float, unit: thousands}
+  annex_c_matrix:
+    file: annex_c_matrix.csv
+    description: "Country × country employment spillover matrix"
+    index_col: true        # ← both rows and columns are country codes
+    columns: []            # column names are country codes; list as empty
 ```
 
 ### benchmarks

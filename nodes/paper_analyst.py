@@ -151,7 +151,7 @@ def _call_llm(system_text: str, paper_text: str, task_text: str, config: dict) -
 
     # cache_control on system prompt (stable across all runs) and paper text (stable per paper).
     # First run writes the cache; subsequent runs on the same paper pay ~$0.03/MTok instead of $3.
-    response = _anthropic_client.messages.create(
+    params = dict(
         model=model,
         max_tokens=max_tokens,
         system=[{
@@ -175,8 +175,20 @@ def _call_llm(system_text: str, paper_text: str, task_text: str, config: dict) -
         }],
     )
 
-    cache_read = getattr(response.usage, "cache_read_input_tokens", 0) or 0
-    cache_write = getattr(response.usage, "cache_creation_input_tokens", 0) or 0
+    # Use streaming — required by the Anthropic SDK when max_tokens is large
+    with _anthropic_client.messages.stream(**params) as stream:
+        response = stream.get_final_message()
+
+    usage = response.usage
+    cache_read = getattr(usage, "cache_read_input_tokens", 0) or 0
+    cache_write = getattr(usage, "cache_creation_input_tokens", 0) or 0
+    billed_input = usage.input_tokens - cache_read  # cache reads are cheaper
+    cost_usd = (billed_input * 3 + cache_read * 0.30 + usage.output_tokens * 15) / 1_000_000
+    log.info(
+        f"paper_analyst LLM: {usage.input_tokens:,} in "
+        f"({cache_read:,} cache_read, {cache_write:,} cache_write) "
+        f"+ {usage.output_tokens:,} out tokens (~${cost_usd:.4f})"
+    )
     if cache_read:
         log.info(f"Prompt cache HIT — {cache_read:,} tokens read from cache")
     elif cache_write:

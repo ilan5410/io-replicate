@@ -11,6 +11,7 @@ from nodes import (
     paper_analyst_node,
     classification_mapper_node,
     data_acquirer_node,
+    data_guide_node,
     data_preparer_node,
     model_builder_node,
     decomposer_node,
@@ -107,6 +108,7 @@ def build_graph(use_checkpointing: bool = True, checkpoint_db: str = None):
     graph.add_node("classification_mapper", classification_mapper_node)
     graph.add_node("human_approval", human_approval_node)
     graph.add_node("data_acquirer", data_acquirer_node)
+    graph.add_node("data_guide", data_guide_node)
     graph.add_node("data_preparer", data_preparer_node)
     graph.add_node("model_builder", model_builder_node)
     graph.add_node("decomposer", decomposer_node)
@@ -122,15 +124,16 @@ def build_graph(use_checkpointing: bool = True, checkpoint_db: str = None):
     graph.add_edge("paper_analyst", "classification_mapper")
     graph.add_edge("classification_mapper", "human_approval")
     graph.add_conditional_edges("human_approval", route_after_approval)
-    graph.add_edge("data_acquirer", "data_preparer")
+    graph.add_edge("data_acquirer", "data_guide")
+    graph.add_edge("data_guide", "data_preparer")
 
     # Validation gate after data preparation
     graph.add_conditional_edges("data_preparer", route_after_prep_validator)
 
     graph.add_edge("model_builder", "decomposer")
-    graph.add_edge("decomposer", "output_producer")
-    graph.add_edge("output_producer", "spec_reconciler")
-    graph.add_edge("spec_reconciler", "reviewer")
+    graph.add_edge("decomposer", "spec_reconciler")   # patch spec BEFORE output_producer sees it
+    graph.add_edge("spec_reconciler", "output_producer")
+    graph.add_edge("output_producer", "reviewer")
 
     # Review gate
     graph.add_conditional_edges("reviewer", route_after_reviewer)
@@ -153,6 +156,7 @@ _NODE_FN_MAP = {
     "paper_analyst":        paper_analyst_node,
     "classification_mapper": classification_mapper_node,
     "data_acquirer":        data_acquirer_node,
+    "data_guide":           data_guide_node,
     "data_preparer":        data_preparer_node,
     "model_builder":        model_builder_node,
     "decomposer":           decomposer_node,
@@ -162,19 +166,21 @@ _NODE_FN_MAP = {
 }
 
 _STAGE_TO_NODE = {
-    0: "paper_analyst",
-    1: "data_acquirer",
-    2: "data_preparer",
-    3: "model_builder",
-    4: "decomposer",
-    5: "output_producer",
-    6: "reviewer",
+    0:   "paper_analyst",
+    1:   "data_acquirer",
+    1.5: "data_guide",
+    2:   "data_preparer",
+    3:   "model_builder",
+    4:   "decomposer",
+    4.5: "spec_reconciler",  # runs after decomposer, before output_producer
+    5:   "output_producer",
+    6:   "reviewer",
 }
 
 # Ordered list of nodes for building partial graphs
 _NODE_ORDER = [
-    "data_acquirer", "data_preparer", "model_builder",
-    "decomposer", "output_producer", "spec_reconciler", "reviewer",
+    "data_acquirer", "data_guide", "data_preparer", "model_builder",
+    "decomposer", "spec_reconciler", "output_producer", "reviewer",
 ]
 
 
@@ -204,6 +210,11 @@ def build_graph_from_stage(start_stage: int, only_stage: str = None, **kwargs):
     # Stage 2 (data_preparer) can be built as a trimmed graph like 3-6.
     if start_stage <= 1:
         return build_graph(**kwargs)
+
+    # spec_reconciler must always run before output_producer and reviewer so that
+    # auto-sourced benchmark patches reach the reviewer even when resuming from stage 5+.
+    if start_node in ("output_producer", "reviewer") and "spec_reconciler" not in [start_node]:
+        start_node = "spec_reconciler"
 
     # For stages 3-6, build a trimmed graph starting at the requested node
     # (data is assumed to be already prepared in the run_dir)

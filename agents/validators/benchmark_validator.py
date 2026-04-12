@@ -35,6 +35,9 @@ _LEGACY_FILE_MAP: dict[str, str] = {
     "annex_c_matrix":        "annex_c_matrix.csv",
 }
 
+# Fallback index-col set (same as spec_reconciler) for specs without output_schema
+_LEGACY_INDEX_COL0: set[str] = {"industry_table4", "industry_figure3", "annex_c_matrix"}
+
 
 def _build_file_map(spec: dict) -> dict[str, str]:
     """Build file map from spec output_schema; falls back to legacy hardcoded map."""
@@ -42,6 +45,14 @@ def _build_file_map(spec: dict) -> dict[str, str]:
     if schema:
         return {key: val["file"] for key, val in schema.items()}
     return _LEGACY_FILE_MAP.copy()
+
+
+def _build_index_col0_set(spec: dict) -> set[str]:
+    """Return the set of file keys that must be loaded with index_col=0."""
+    schema = spec.get("output_schema", {})
+    if schema:
+        return {key for key, val in schema.items() if val.get("index_col", False)}
+    return _LEGACY_INDEX_COL0
 
 
 def run_benchmark_checks(spec: dict, decomp_dir: Path) -> list[dict]:  # noqa: C901
@@ -58,6 +69,23 @@ def run_benchmark_checks(spec: dict, decomp_dir: Path) -> list[dict]:  # noqa: C
     error_pct = float(tolerances.get("error_pct", 25))
 
     file_map = _build_file_map(spec)
+    index_col0 = _build_index_col0_set(spec)
+
+    # Cache loaded DataFrames — avoids re-reading the same CSV for every benchmark
+    import pandas as pd
+    _df_cache: dict[str, "pd.DataFrame"] = {}
+
+    def _get_df(file_key: str) -> "pd.DataFrame":
+        if file_key not in _df_cache:
+            filename = file_map.get(file_key)
+            if not filename:
+                raise ValueError(f"Unknown source file '{file_key}'. Valid: {list(file_map)}")
+            path = decomp_dir / filename
+            if not path.exists():
+                raise FileNotFoundError(f"Decomposition file not found: {path}")
+            use_index = file_key in index_col0
+            _df_cache[file_key] = pd.read_csv(path, index_col=0 if use_index else None)
+        return _df_cache[file_key]
 
     results: list[dict] = []
     for bm in benchmarks.get("values", []):
@@ -77,7 +105,7 @@ def run_benchmark_checks(spec: dict, decomp_dir: Path) -> list[dict]:  # noqa: C
             continue
 
         try:
-            actual = _resolve(source, decomp_dir, file_map)
+            actual = _resolve(source, _get_df)
         except Exception as e:
             log.warning(f"Benchmark '{name}' resolution failed: {e}")
             results.append(_result(name, expected, unit, None, None, "ERROR", str(e)))
@@ -144,24 +172,15 @@ def _result(name, expected, unit, actual, deviation_pct, status, note) -> dict:
     }
 
 
-def _resolve(source: dict[str, Any], decomp_dir: Path, file_map: dict[str, str]) -> float:
-    """Resolve a source descriptor to a single float value."""
-    import pandas as pd
+def _resolve(source: dict[str, Any], get_df) -> float:
+    """Resolve a source descriptor to a single float value.
 
+    Args:
+        source: The source descriptor dict from a benchmark.
+        get_df: Callable(file_key) → pd.DataFrame — returns a cached DataFrame.
+    """
     file_key = source.get("file")
-    filename = file_map.get(file_key)
-    if not filename:
-        raise ValueError(f"Unknown source file '{file_key}'. Valid: {list(file_map)}")
-
-    path = decomp_dir / filename
-    if not path.exists():
-        raise FileNotFoundError(f"Decomposition file not found: {path}")
-
-    # industry_table4 has a row-label index column
-    if file_key == "industry_table4":
-        df = pd.read_csv(path, index_col=0)
-    else:
-        df = pd.read_csv(path)
+    df = get_df(file_key)   # raises ValueError/FileNotFoundError if missing
 
     op = source.get("op")
     column = source.get("column")

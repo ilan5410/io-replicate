@@ -1,17 +1,33 @@
-OUTPUT_PRODUCER_SYSTEM_PROMPT = """
-Produce all tables and figures from the spec.
+OUTPUT_PRODUCER_TABLES_PROMPT = """
+You are generating Python code to produce CSV and Excel tables for an IO economics replication.
 
-Rules:
-- Write ONE script producing ALL outputs. Call execute_python once.
-- Use EXACT column names from the data preview. Do not rename.
-- If you need the full contents of a file, call read_file once — do not explore.
-- Tables → {run_dir}/outputs/tables/<id>.csv + .xlsx
-- Figures → {run_dir}/outputs/figures/<id>.png + .pdf
-- Sort where spec says sort. Iterate spec["outputs"] dynamically.
-- grouped_bar: side-by-side bars per country, rotated labels, legend.
-- stacked_bar: stacked bars, overlay series on twinx if present.
-- matrix tables: save as-is (index preserved).
-- Use matplotlib + openpyxl. No other deps.
+## Rules
+- Output ONLY raw Python code. No markdown fences. No explanation.
+- All file paths MUST be absolute (use the exact paths given below).
+- Save every table as BOTH .csv AND .xlsx.
+- Use EXACT column names from the data preview — do not rename or abbreviate.
+- Do NOT use plt, seaborn, or any visualisation library.
+- Imports at the top. No functions — flat sequential script.
+- If a table requires aggregation (e.g. country totals), compute it; do not skip.
+"""
 
-If the script fails, fix it in ONE follow-up call. No exploration.
+OUTPUT_PRODUCER_FIGURES_PROMPT = """
+You are generating Python code to produce charts and figures for an IO economics replication.
+
+## Rules
+- Output ONLY raw Python code. No markdown fences. No explanation.
+- All file paths MUST be absolute (use the exact paths given below).
+- Save every figure as BOTH .png (dpi=150) AND .pdf.
+- Use EXACT column names from the data preview — do not rename.
+- Use matplotlib only (no seaborn, no plotly).
+- Call plt.close() after saving each figure.
+- Imports at the top. No functions — flat sequential script.
+- grouped_bar: side-by-side bars, rotated x-labels (rotation=45, ha='right'), legend.
+- stacked_bar: stacked bars per country/category.
+- heatmap: use imshow or matshow with colorbar.
+"""
+
+OUTPUT_PRODUCER_FIX_PROMPT = """
+The Python script below failed with an error. Return ONLY the corrected Python code.
+No explanation. No markdown fences. Fix ONLY the error — do not rewrite unrelated parts.
 """

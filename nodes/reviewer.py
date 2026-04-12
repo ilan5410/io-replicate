@@ -106,11 +106,16 @@ def _get_interpretation(bm_results: list[dict], spec: dict, config: dict) -> str
     notes = "\n".join(f"- {n}" for n in spec.get("benchmarks", {}).get("notes", []))
     unverified = [r for r in bm_results if r["status"] in ("UNVERIFIED", "ERROR")]
     unverified_section = ""
+    _MAX_UNVERIFIED_IN_PROMPT = 20
     if unverified:
+        shown = unverified[:_MAX_UNVERIFIED_IN_PROMPT]
+        remainder = len(unverified) - len(shown)
+        tail = f"\n... and {remainder} more (omitted for brevity)" if remainder else ""
         unverified_section = (
             "\n\nThe following benchmarks could not be checked deterministically "
             "(no `source` descriptor in the spec). Comment on them in your interpretation:\n"
-            + "\n".join(f"- {r['name']}: expected {r['expected']} {r['unit']}" for r in unverified)
+            + "\n".join(f"- {r['name']}: expected {r['expected']} {r['unit']}" for r in shown)
+            + tail
         )
 
     prompt = (

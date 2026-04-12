@@ -26,6 +26,9 @@ class PipelineState(TypedDict, total=False):
     data_manifest: dict            # {table_code: {path, rows, checksum}, ...}
     acquisition_complete: bool
 
+    # ── Stage 1.5 output (Data Guide) ─────────────────────────────────────────
+    data_guide: dict               # Structured profile of all raw files (data_guide.yaml)
+
     # ── Stage 2 output ────────────────────────────────────────────────────────
     prepared_data_paths: dict      # {Z_EU: path, e_nonEU: path, x_EU: path, Em_EU: path, metadata: path}
     preparation_valid: bool
