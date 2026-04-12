@@ -25,6 +25,8 @@ import logging
 from pathlib import Path
 from typing import Any
 
+import pandas as pd
+
 log = logging.getLogger("benchmark_validator")
 
 # Fallback file map for specs that pre-date the output_schema feature
@@ -72,10 +74,9 @@ def run_benchmark_checks(spec: dict, decomp_dir: Path) -> list[dict]:  # noqa: C
     index_col0 = _build_index_col0_set(spec)
 
     # Cache loaded DataFrames — avoids re-reading the same CSV for every benchmark
-    import pandas as pd
-    _df_cache: dict[str, "pd.DataFrame"] = {}
+    _df_cache: dict[str, pd.DataFrame] = {}
 
-    def _get_df(file_key: str) -> "pd.DataFrame":
+    def _get_df(file_key: str) -> pd.DataFrame:
         if file_key not in _df_cache:
             filename = file_map.get(file_key)
             if not filename:
