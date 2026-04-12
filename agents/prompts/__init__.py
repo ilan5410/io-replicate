@@ -1,7 +1,6 @@
 from .paper_analyst import PAPER_ANALYST_SYSTEM_PROMPT
 from .classification_mapper import CLASSIFICATION_MAPPER_SYSTEM_PROMPT
 from .data_acquirer import DATA_ACQUIRER_SYSTEM_PROMPT
-from .data_preparer import DATA_PREPARER_SYSTEM_PROMPT
 from .output_producer import OUTPUT_PRODUCER_SYSTEM_PROMPT
 from .reviewer import REVIEWER_SYSTEM_PROMPT
 
@@ -9,7 +8,6 @@ __all__ = [
     "PAPER_ANALYST_SYSTEM_PROMPT",
     "CLASSIFICATION_MAPPER_SYSTEM_PROMPT",
     "DATA_ACQUIRER_SYSTEM_PROMPT",
-    "DATA_PREPARER_SYSTEM_PROMPT",
     "OUTPUT_PRODUCER_SYSTEM_PROMPT",
     "REVIEWER_SYSTEM_PROMPT",
 ]
