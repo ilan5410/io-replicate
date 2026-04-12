@@ -1,9 +1,10 @@
 OUTPUT_PRODUCER_SYSTEM_PROMPT = """
-Produce all tables and figures from the spec. All data context is in the message — do NOT call read_file or list_files.
+Produce all tables and figures from the spec.
 
 Rules:
 - Write ONE script producing ALL outputs. Call execute_python once.
 - Use EXACT column names from the data preview. Do not rename.
+- If you need the full contents of a file, call read_file once — do not explore.
 - Tables → {run_dir}/outputs/tables/<id>.csv + .xlsx
 - Figures → {run_dir}/outputs/figures/<id>.png + .pdf
 - Sort where spec says sort. Iterate spec["outputs"] dynamically.

@@ -5,7 +5,8 @@ llm:
     openai:
       api_key_env: OPENAI_API_KEY
   routing:
-    paper_analyst: anthropic/claude-opus-4-6
+    paper_analyst: anthropic/claude-sonnet-4-6  # downgraded from opus — 5x cheaper; switch back if spec quality degrades
+    classification_mapper: anthropic/claude-sonnet-4-6  # desk research + concordance lookup; sonnet for reasoning quality
     data_acquirer: anthropic/claude-sonnet-4-6   # gpt-4o-mini works on Python 3.10-3.12; langchain-openai has pydantic v1 issues on 3.14+
     data_preparer: anthropic/claude-haiku-4-5-20251001  # code generation; haiku is sufficient and ~4x cheaper than sonnet
     output_producer: anthropic/claude-haiku-4-5-20251001  # task is well-specified; haiku sufficient and ~20x cheaper
@@ -15,6 +16,7 @@ llm:
     reviewer: 0.0      # deterministic benchmark comparisons
     paper_analyst: 0.2 # slight creativity for spec extraction
   paper_analyst_max_tokens: 16000  # raise if spec is truncated (max_tokens error)
+  output_producer_max_tokens: 4000  # scripts don't need more; cap prevents runaway haiku output
 
 pipeline:
   max_retries: 3

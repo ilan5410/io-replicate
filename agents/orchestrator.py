@@ -9,6 +9,7 @@ from langgraph.graph import StateGraph, END
 from agents.state import PipelineState
 from nodes import (
     paper_analyst_node,
+    classification_mapper_node,
     data_acquirer_node,
     data_preparer_node,
     model_builder_node,
@@ -103,6 +104,7 @@ def build_graph(use_checkpointing: bool = True, checkpoint_db: str = None):
 
     # Add nodes
     graph.add_node("paper_analyst", paper_analyst_node)
+    graph.add_node("classification_mapper", classification_mapper_node)
     graph.add_node("human_approval", human_approval_node)
     graph.add_node("data_acquirer", data_acquirer_node)
     graph.add_node("data_preparer", data_preparer_node)
@@ -117,7 +119,8 @@ def build_graph(use_checkpointing: bool = True, checkpoint_db: str = None):
     graph.set_entry_point("paper_analyst")
 
     # Edges
-    graph.add_edge("paper_analyst", "human_approval")
+    graph.add_edge("paper_analyst", "classification_mapper")
+    graph.add_edge("classification_mapper", "human_approval")
     graph.add_conditional_edges("human_approval", route_after_approval)
     graph.add_edge("data_acquirer", "data_preparer")
 
@@ -147,14 +150,15 @@ def build_graph(use_checkpointing: bool = True, checkpoint_db: str = None):
 
 
 _NODE_FN_MAP = {
-    "paper_analyst":   paper_analyst_node,
-    "data_acquirer":   data_acquirer_node,
-    "data_preparer":   data_preparer_node,
-    "model_builder":   model_builder_node,
-    "decomposer":      decomposer_node,
-    "output_producer": output_producer_node,
-    "spec_reconciler": spec_reconciler_node,
-    "reviewer":        reviewer_node,
+    "paper_analyst":        paper_analyst_node,
+    "classification_mapper": classification_mapper_node,
+    "data_acquirer":        data_acquirer_node,
+    "data_preparer":        data_preparer_node,
+    "model_builder":        model_builder_node,
+    "decomposer":           decomposer_node,
+    "output_producer":      output_producer_node,
+    "spec_reconciler":      spec_reconciler_node,
+    "reviewer":             reviewer_node,
 }
 
 _STAGE_TO_NODE = {

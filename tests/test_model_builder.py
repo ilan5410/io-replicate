@@ -7,11 +7,11 @@ All values chosen so that A column sums < 1 (productive economy).
 import numpy as np
 import pytest
 
-from nodes.model_builder import (
-    _build_employment_coefficients,
-    _build_leontief_inverse,
-    _build_technical_coefficients,
-    _compute_employment_content,
+from skills.leontief import (
+    build_employment_coefficients as _build_employment_coefficients,
+    build_leontief_inverse as _build_leontief_inverse,
+    build_technical_coefficients as _build_technical_coefficients,
+    compute_employment_content as _compute_employment_content,
 )
 
 # ── Synthetic data ─────────────────────────────────────────────────────────────

@@ -44,13 +44,14 @@ def paper_analyst_node(state: PipelineState) -> dict:
     # 2. Load schema only (no example spec — that's thousands of wasted tokens)
     schema_text = _SCHEMA_PATH.read_text()
 
-    # 3. Build the single prompt
+    # 3. Build prompts (split for caching)
     user_hints = state.get("user_hints") or ""
-    prompt = _build_prompt(paper_text, schema_text, user_hints)
+    system_text = _build_system_prompt(schema_text)
+    task_text = _build_task_text(user_hints)
 
-    # 4. ONE Anthropic API call
-    log.info("Sending single prompt to Opus...")
-    spec_yaml = _call_opus(prompt, config)
+    # 4. ONE Anthropic API call with prompt caching
+    log.info("Sending single prompt to LLM (with prompt caching)...")
+    spec_yaml = _call_llm(system_text, paper_text, task_text, config)
 
     # 5. Parse and validate
     try:
@@ -95,14 +96,13 @@ def _read_pdf(path: str) -> str:
         raise ImportError("pypdf is required to read PDFs. Run: pip install pypdf")
 
 
-def _build_prompt(paper_text: str, schema_text: str, user_hints: str) -> str:
-    hints_section = f"\n\nUser hints:\n{user_hints}" if user_hints else ""
-
+def _build_system_prompt(schema_text: str) -> str:
+    """Stable system prompt — cached on every run after the first."""
     return f"""You are analyzing an Input-Output economics paper to produce a structured replication spec.
 
 ## Your task
 
-Read the paper below and produce a complete `replication_spec.yaml`. Output ONLY the raw YAML — no prose, no markdown fences.
+Read the paper in the user message and produce a complete `replication_spec.yaml`. Output ONLY the raw YAML — no prose, no markdown fences.
 
 ## Schema
 
@@ -117,20 +117,20 @@ Read the paper below and produce a complete `replication_spec.yaml`. Output ONLY
 3. `benchmarks.values`: extract EVERY numerical result in the paper (employment totals, shares, industry totals).
 4. `outputs`: list EVERY table and figure including annexes.
 5. Flag ambiguities with YAML comments: `# AMBIGUITY: ...`
-6. `tolerances`: warning_pct: 10, error_pct: 25{hints_section}
+6. `tolerances`: warning_pct: 10, error_pct: 25"""
 
-## Paper
 
-{paper_text}
-
-## Output (raw YAML only):"""
+def _build_task_text(user_hints: str) -> str:
+    """Short task suffix appended after the cached paper text (not cached)."""
+    hints_section = f"\n\nUser hints:\n{user_hints}" if user_hints else ""
+    return f"Produce the replication_spec.yaml for the paper above.{hints_section}\n\n## Output (raw YAML only):"
 
 
 _anthropic_client = None
 
 
-def _call_opus(prompt: str, config: dict) -> str:
-    """Make a single Anthropic API call and return the YAML string."""
+def _call_llm(system_text: str, paper_text: str, task_text: str, config: dict) -> str:
+    """Single Anthropic API call with prompt caching on both system and paper content."""
     global _anthropic_client
     import anthropic
 
@@ -140,8 +140,7 @@ def _call_opus(prompt: str, config: dict) -> str:
     if not api_key:
         raise EnvironmentError(f"ANTHROPIC_API_KEY not set (env var: {key_env})")
 
-    model = config.get("llm", {}).get("routing", {}).get("paper_analyst", "claude-opus-4-6")
-    # Strip provider prefix if present
+    model = config.get("llm", {}).get("routing", {}).get("paper_analyst", "claude-sonnet-4-6")
     if "/" in model:
         model = model.split("/", 1)[1]
 
@@ -149,11 +148,39 @@ def _call_opus(prompt: str, config: dict) -> str:
 
     if _anthropic_client is None:
         _anthropic_client = anthropic.Anthropic(api_key=api_key)
+
+    # cache_control on system prompt (stable across all runs) and paper text (stable per paper).
+    # First run writes the cache; subsequent runs on the same paper pay ~$0.03/MTok instead of $3.
     response = _anthropic_client.messages.create(
         model=model,
         max_tokens=max_tokens,
-        messages=[{"role": "user", "content": prompt}],
+        system=[{
+            "type": "text",
+            "text": system_text,
+            "cache_control": {"type": "ephemeral"},
+        }],
+        messages=[{
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": paper_text,
+                    "cache_control": {"type": "ephemeral"},
+                },
+                {
+                    "type": "text",
+                    "text": task_text,
+                },
+            ],
+        }],
     )
+
+    cache_read = getattr(response.usage, "cache_read_input_tokens", 0) or 0
+    cache_write = getattr(response.usage, "cache_creation_input_tokens", 0) or 0
+    if cache_read:
+        log.info(f"Prompt cache HIT — {cache_read:,} tokens read from cache")
+    elif cache_write:
+        log.info(f"Prompt cache WRITE — {cache_write:,} tokens written to cache")
 
     if response.stop_reason == "max_tokens":
         raise ValueError(

@@ -10,12 +10,28 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from nodes.decomposer import _compute_domestic_spillover, _compute_industry_decomposition
-from nodes.model_builder import (
-    _build_employment_coefficients,
-    _build_leontief_inverse,
-    _build_technical_coefficients,
+import pandas as pd
+
+from skills.leontief import (
+    compute_domestic_spillover as _compute_domestic_spillover_raw,
+    compute_industry_decomposition as _compute_industry_decomposition_raw,
+    build_employment_coefficients as _build_employment_coefficients,
+    build_leontief_inverse as _build_leontief_inverse,
+    build_technical_coefficients as _build_technical_coefficients,
 )
+
+
+def _compute_domestic_spillover(eu_countries, N, P, e, em, em_mat, d):
+    return pd.DataFrame(_compute_domestic_spillover_raw(eu_countries, N, P, e, em, em_mat, d))
+
+
+def _compute_industry_decomposition(L, d, e, em_mat, eu_countries, N, P, agg):
+    sector_names = list(agg.keys())
+    table4_arr, fig3_rows = _compute_industry_decomposition_raw(L, d, e, em_mat, eu_countries, N, P, agg)
+    return (
+        pd.DataFrame(table4_arr, index=sector_names, columns=sector_names),
+        pd.DataFrame(fig3_rows),
+    )
 
 # ── Synthetic 2-country × 2-product system ────────────────────────────────────
 Z = np.array([

@@ -19,6 +19,9 @@ class PipelineState(TypedDict, total=False):
     replication_spec_path: str     # Path to the written spec file
     spec_approved: bool            # Set to True after human_approval node
 
+    # ── Stage 0.5 output (Classification Mapper) ─────────────────────────────
+    concept_mappings: dict         # {concept_id: {codes, reasoning, sources, confidence, caveats}}
+
     # ── Stage 1 output ────────────────────────────────────────────────────────
     data_manifest: dict            # {table_code: {path, rows, checksum}, ...}
     acquisition_complete: bool

@@ -5,7 +5,6 @@ Parameterized entirely by replication_spec — no hardcoded dimensions.
 """
 import json
 import logging
-import time
 from pathlib import Path
 
 import numpy as np
@@ -14,6 +13,20 @@ from rich.console import Console
 from rich.panel import Panel
 
 from agents.state import PipelineState
+from skills.leontief import (
+    build_technical_coefficients,
+    build_leontief_inverse,
+    build_employment_coefficients,
+    compute_employment_content,
+    validate_model,
+)
+
+# Private aliases — preserved for backward compatibility with existing tests
+_build_technical_coefficients = build_technical_coefficients
+_build_leontief_inverse = build_leontief_inverse
+_build_employment_coefficients = build_employment_coefficients
+_compute_employment_content = compute_employment_content
+_validate_model = validate_model
 
 log = logging.getLogger("model_builder")
 _console = Console()
@@ -85,77 +98,6 @@ def model_builder_node(state: PipelineState) -> dict:
         "current_stage": 3,
     }
 
-
-def _build_technical_coefficients(Z_EU: np.ndarray, x_EU: np.ndarray) -> np.ndarray:
-    x_inv = np.where(x_EU > 0, 1.0 / x_EU, 0.0)
-    A = Z_EU * x_inv[np.newaxis, :]
-    col_sums = A.sum(axis=0)
-    log.info(f"A: max col sum={col_sums.max():.6f}, cols>=1: {np.sum(col_sums >= 1.0)}")
-    return A
-
-
-def _build_leontief_inverse(A: np.ndarray) -> np.ndarray:
-    N = A.shape[0]
-    log.info(f"Computing Leontief inverse ({N}×{N})...")
-    t0 = time.time()
-    I_minus_A = np.eye(N) - A
-    # Full inverse is needed (not just solve) because L is reused in decomposer
-    # for country-level and industry-level decomposition with different e vectors
-    L = np.linalg.inv(I_minus_A)
-    log.info(f"Leontief inverse computed in {time.time()-t0:.1f}s")
-    return L
-
-
-def _build_employment_coefficients(x_EU: np.ndarray, em_EU: np.ndarray) -> np.ndarray:
-    d = np.where(x_EU > 0, em_EU / x_EU, 0.0)
-    log.info(f"d: min={d.min():.6f}, max={d.max():.6f}, zeros={np.sum(d==0)}")
-    return d
-
-
-def _compute_employment_content(
-    d: np.ndarray,
-    L: np.ndarray,
-    e_nonEU: np.ndarray,
-    eu_countries: list,
-    cpa_codes: list,
-) -> dict:
-    N = len(eu_countries)
-    P = len(cpa_codes)
-
-    em_exports_total = d * (L @ e_nonEU)
-    log.info(f"Total EU export-supported employment: {em_exports_total.sum():.0f} thousand persons")
-
-    # Build E_mat: column s = country s's export vector (NP × N)
-    # Single matrix multiply replaces 28 sequential matrix-vector products
-    E_mat = np.zeros((N * P, N), dtype=np.float64)
-    for s_idx in range(N):
-        E_mat[s_idx * P:(s_idx + 1) * P, s_idx] = e_nonEU[s_idx * P:(s_idx + 1) * P]
-
-    LE = L @ E_mat  # (NP, N)
-
-    # em_country_matrix[r, s] = d[r_block] · LE[r_block, s]
-    D = d.reshape(N, P)                      # (N, P)
-    LE_reshaped = LE.reshape(N, P, N)        # (r_country, r_prod, s_country)
-    em_country_matrix = np.einsum('rp,rps->rs', D, LE_reshaped)
-
-    log.info(f"Country matrix total: {em_country_matrix.sum():.0f}")
-    return {"em_exports_total": em_exports_total, "em_country_matrix": em_country_matrix}
-
-
-def _validate_model(A: np.ndarray, L: np.ndarray) -> dict:
-    N = A.shape[0]
-    col_sums = A.sum(axis=0)
-    I_minus_A = np.eye(N) - A
-    identity_residual = float(np.max(np.abs(L @ I_minus_A - np.eye(N))))
-    checks = {
-        "max_col_sum": float(col_sums.max()),
-        "n_col_sums_ge1": int(np.sum(col_sums >= 1.0)),
-        "n_negative_L": int(np.sum(L < -1e-10)),
-        "n_diag_lt1": int(np.sum(np.diag(L) < 1.0 - 1e-10)),
-        "identity_residual": identity_residual,
-    }
-    log.info(f"Model checks: {checks}")
-    return checks
 
 
 def _save_outputs(A, L, d, results, model_dir, eu_countries, cpa_codes, row_labels) -> dict:

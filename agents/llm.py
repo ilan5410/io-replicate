@@ -25,11 +25,11 @@ class LLMProvider(Enum):
 # All stages default to Anthropic; switch data_acquirer/output_producer to
 # openai/gpt-4o-mini in config.yaml if using Python ≤3.12 for lower cost.
 DEFAULT_ROUTING: dict[str, str] = {
-    "paper_analyst":   "anthropic/claude-opus-4-6",
+    "paper_analyst":   "anthropic/claude-sonnet-4-6",
     "data_acquirer":   "anthropic/claude-sonnet-4-6",
     "data_preparer":   "anthropic/claude-haiku-4-5-20251001",
-    "output_producer": "anthropic/claude-sonnet-4-6",
-    "reviewer":        "anthropic/claude-sonnet-4-6",
+    "output_producer": "anthropic/claude-haiku-4-5-20251001",
+    "reviewer":        "anthropic/claude-haiku-4-5-20251001",
 }
 
 DEFAULT_FALLBACK = "anthropic/claude-sonnet-4-6"
@@ -61,6 +61,8 @@ def get_llm(agent_name: str, config: dict):
     temperature = config.get("llm", {}).get("temperatures", {}).get(agent_name)
 
     provider, model_id = _parse_model_str(model_str)
+    # Per-agent max_tokens override from config (e.g. output_producer_max_tokens: 4000)
+    max_tokens = config.get("llm", {}).get(f"{agent_name}_max_tokens")
 
     import logging as _logging
     _log = _logging.getLogger("llm")
@@ -85,7 +87,7 @@ def get_llm(agent_name: str, config: dict):
                     f"Set it or add OPENAI_API_KEY as fallback."
                 )
         else:
-            llm = _make_anthropic(model_id, api_key, temperature)
+            llm = _make_anthropic(model_id, api_key, temperature, max_tokens=max_tokens)
 
     elif provider == "openai":
         api_key = os.environ.get(openai_key_env)
@@ -122,9 +124,9 @@ def _parse_model_str(model_str: str) -> tuple[str, str]:
     return "openai", model_str
 
 
-def _make_anthropic(model_id: str, api_key: str, temperature: float | None = None) -> "BaseChatModel":
+def _make_anthropic(model_id: str, api_key: str, temperature: float | None = None, max_tokens: int | None = None) -> "BaseChatModel":
     from langchain_anthropic import ChatAnthropic
-    kwargs: dict = {"model": model_id, "api_key": api_key, "max_tokens": 8192}
+    kwargs: dict = {"model": model_id, "api_key": api_key, "max_tokens": max_tokens or 8192}
     if temperature is not None:
         kwargs["temperature"] = temperature
     return ChatAnthropic(**kwargs)
