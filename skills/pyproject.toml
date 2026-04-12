@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "io-replication-skills"
+version = "0.1.0"
+description = "Standalone skills library for Input-Output economics analysis: IO database parsers, Leontief math, and classification mapping"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+keywords = ["input-output", "economics", "leontief", "FIGARO", "WIOD", "OECD", "EXIOBASE", "NACE"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+    "numpy>=1.24",
+    "pandas>=2.0",
+    "openpyxl>=3.1",  # required by wiod_mrio parser
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
+
+[project.urls]
+Repository = "https://github.com/ilan5410/io-replicate"
+
+[tool.setuptools.packages.find]
+# Build from the parent directory so setuptools sees the `skills/` package.
+where = [".."]
+include = ["skills*"]

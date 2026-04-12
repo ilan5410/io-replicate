@@ -390,10 +390,16 @@ Ordered by dependency / risk. Each step is independently shippable.
 - Confirmed: aggregation reads `spec["classification"]["aggregations"]` dynamically.
 - No hardcoded sector names or counts in decomposer or Leontief skill.
 
-### Step 8 — Polish + package
-- Publish `skills/` as a standalone pip-installable package (`pip install io-replication-skills`).
-- Keep agent framework in this repo; skills become a dependency.
-- Per-skill SKILL.md files written (leontief, io_parsers, classification_mapping).
+### Step 8 — Polish + package ✅ DONE
+- `skills/pyproject.toml` — standalone package metadata; `pip install skills/` installs
+  `io-replication-skills` with only numpy/pandas/openpyxl as deps (no LLM framework).
+- `skills/README.md` — PyPI-ready landing page with API examples for all three skills.
+- `skills/__init__.py` — `__version__ = "0.1.0"` added.
+- Root `pyproject.toml` updated: `pypdf` added (was missing), `[skills-only]` optional extra,
+  comments linking to the standalone package.
+- Installable two ways:
+  - `pip install skills/` — just skills (math + parsers + classification)
+  - `pip install .` — full pipeline (skills + agents + LLM deps)
 
 ---
 

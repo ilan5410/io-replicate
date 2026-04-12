@@ -7,22 +7,36 @@ name = "io-replicator"
 version = "0.1.0"
 description = "Generic multi-agent system for Input-Output paper replication"
 requires-python = ">=3.11"
+# Core IO/math skills are also published standalone as `io-replication-skills`
+# (see skills/pyproject.toml). Install just the skills: pip install skills/
 dependencies = [
+    # Skills library (bundled in this repo; also publishable standalone)
+    "numpy>=1.24",
+    "pandas>=2.0",
+    "openpyxl>=3.1",
+    # Agent framework
     "langgraph>=0.2",
     "langchain-anthropic>=0.2",
     "langchain-openai>=0.2",
     "langchain-core>=0.3",
     "anthropic>=0.36",
     "openai>=1.0",
+    "pypdf>=4.0",
     "pyyaml>=6.0",
     "jsonschema>=4.0",
-    "numpy>=1.24",
-    "pandas>=2.0",
     "matplotlib>=3.7",
-    "openpyxl>=3.1",
     "click>=8.1",
     "rich>=13.0",
 ]
+
+[project.optional-dependencies]
+# Install just the IO/math skills (no LLM deps): pip install "io-replicator[skills-only]"
+skills-only = [
+    "numpy>=1.24",
+    "pandas>=2.0",
+    "openpyxl>=3.1",
+]
+dev = ["pytest>=7.0"]
 
 [project.scripts]
 io-replicate = "cli.main:cli"
