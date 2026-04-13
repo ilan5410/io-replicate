@@ -149,6 +149,7 @@ def compute_domestic_spillover(
             "export_emp_share_pct": total_in_r / total_emp_r * 100 if total_emp_r > 0 else 0,
             "domestic_share_pct": domestic / total_by_r * 100 if total_by_r > 0 else 0,
             "spillover_share_pct": spillover_generated / total_by_r * 100 if total_by_r > 0 else 0,
+            "spillover_received_share_pct": spillover_received / total_emp_r * 100 if total_emp_r > 0 else 0,
         })
     return rows
 

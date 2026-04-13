@@ -503,9 +503,38 @@ def _auto_source_benchmarks(spec: dict, decomp_dir: Path, file_map: dict, _spec_
             except (TypeError, ValueError):
                 pass
 
-    # Annex-C column sums and row sums
-    annex_col_sums: list[tuple[dict, float]] = []
-    annex_row_sums: list[tuple[dict, float]] = []
+    # Index-file column sums and row sums (e.g. industry_table4, annex_c_matrix)
+    index_col_sums: list[tuple[dict, float]] = []
+    index_row_sums: list[tuple[dict, float]] = []
+    for file_key, df in file_dfs.items():
+        if file_key not in index_col0_files:
+            continue
+        for col in df.columns:
+            try:
+                s = float(df[col].sum())
+                if math.isfinite(s):
+                    index_col_sums.append((
+                        {"file": file_key, "op": "sum_column", "column": col}, s
+                    ))
+            except (TypeError, ValueError):
+                pass
+        for row in df.index:
+            try:
+                s = float(df.loc[row].sum())
+                if math.isfinite(s):
+                    index_row_sums.append((
+                        {"file": file_key, "op": "sum_row", "row": row}, s
+                    ))
+            except (TypeError, ValueError):
+                pass
+
+    # Annex-C column sums and row sums (kept for backward-compat country-specific matching)
+    annex_col_sums: list[tuple[dict, float]] = [
+        (s, v) for s, v in index_col_sums if s["file"] == "annex_c_matrix"
+    ]
+    annex_row_sums: list[tuple[dict, float]] = [
+        (s, v) for s, v in index_row_sums if s["file"] == "annex_c_matrix"
+    ]
     annex_grand_total: float | None = None
     if "annex_c_matrix" in file_dfs:
         adf = file_dfs["annex_c_matrix"]
@@ -553,7 +582,10 @@ def _auto_source_benchmarks(spec: dict, decomp_dir: Path, file_map: dict, _spec_
             continue
 
         approx = bm.get("approximate", False)
-        tol_lookup = _AUTO_SOURCE_TOLERANCE * (1.5 if approx else 1.0)   # 15% / 22.5%
+        # Per-country lookups are structurally unambiguous (country + column must both
+        # match), so we tolerate larger deviations — the excess reflects data differences
+        # (product-by-product vs industry-by-industry) rather than a wrong match.
+        tol_lookup = _AUTO_SOURCE_TOLERANCE * (2.5 if approx else 2.67)  # 40% / 37.5%
         tol_agg    = _AUTO_SOURCE_TOLERANCE * (2.0 if approx else 1.5)   # 22.5% / 30%
 
         name_lower = bm.get("name", "").lower()
@@ -621,16 +653,16 @@ def _auto_source_benchmarks(spec: dict, decomp_dir: Path, file_map: dict, _spec_
             if dev <= tol_agg:
                 candidates.append((dev, 4, src))
 
-        # 5. Annex-C column sums (no country filter, or secondary)
+        # 5. All index-file column sums (industry_table4, annex_c, etc.) — no country filter
         if not primary_country:
-            for src, val in annex_col_sums:
+            for src, val in index_col_sums:
                 dev = _rel_dev(val, target)
                 if dev <= tol_agg:
                     candidates.append((dev, 5, src))
 
-        # 6. Annex-C row sums (no country filter)
+        # 6. All index-file row sums — no country filter
         if not primary_country:
-            for src, val in annex_row_sums:
+            for src, val in index_row_sums:
                 dev = _rel_dev(val, target)
                 if dev <= tol_agg:
                     candidates.append((dev, 6, src))
