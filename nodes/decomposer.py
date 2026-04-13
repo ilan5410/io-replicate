@@ -42,13 +42,24 @@ def decomposer_node(state: PipelineState) -> dict:
     N = len(eu_countries)
     P = len(cpa_codes)
 
+    # Resolve file paths: prefer state-provided paths, fall back to convention-based
+    # paths under run_dir so that --start-stage 4 works without stages 2/3 in state.
+    prepared_dir = run_dir / "data" / "prepared"
+    model_dir = run_dir / "data" / "model"
+
+    def _prepared(key: str, filename: str) -> Path:
+        return Path(prepared_paths[key]) if key in prepared_paths else prepared_dir / filename
+
+    def _model(key: str, filename: str) -> Path:
+        return Path(model_paths[key]) if key in model_paths else model_dir / filename
+
     # Load data
-    e_nonEU = pd.read_csv(prepared_paths["e_nonEU"])["e_nonEU_MIO_EUR"].values.astype(np.float64)
-    em_EU = pd.read_csv(prepared_paths["Em_EU"])["em_EU_THS_PER"].values.astype(np.float64)
+    e_nonEU = pd.read_csv(_prepared("e_nonEU", "e_nonEU.csv"))["e_nonEU_MIO_EUR"].values.astype(np.float64)
+    em_EU = pd.read_csv(_prepared("Em_EU", "Em_EU.csv"))["em_EU_THS_PER"].values.astype(np.float64)
     # L_EU stored as .npy (binary) — fast load, ~4x smaller than CSV
-    L = np.load(model_paths["L_EU"])
-    d = pd.read_csv(model_paths["d_EU"])["d_THS_PER_per_MIO_EUR"].values.astype(np.float64)
-    em_mat = pd.read_csv(model_paths["em_exports_country_matrix"], index_col=0).values.astype(np.float64)
+    L = np.load(_model("L_EU", "L_EU.npy"))
+    d = pd.read_csv(_model("d_EU", "d_EU.csv"))["d_THS_PER_per_MIO_EUR"].values.astype(np.float64)
+    em_mat = pd.read_csv(_model("em_exports_country_matrix", "em_exports_country_matrix.csv"), index_col=0).values.astype(np.float64)
 
     paths = {}
     decomp_names = [dec["name"] for dec in spec.get("decompositions", [])]
