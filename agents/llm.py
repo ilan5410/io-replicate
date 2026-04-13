@@ -25,11 +25,12 @@ class LLMProvider(Enum):
 # All stages default to Anthropic; switch data_acquirer/output_producer to
 # openai/gpt-4o-mini in config.yaml if using Python ≤3.12 for lower cost.
 DEFAULT_ROUTING: dict[str, str] = {
-    "paper_analyst":   "anthropic/claude-sonnet-4-6",
-    "data_acquirer":   "anthropic/claude-sonnet-4-6",
-    "data_preparer":   "anthropic/claude-haiku-4-5-20251001",
-    "output_producer": "anthropic/claude-haiku-4-5-20251001",
-    "reviewer":        "anthropic/claude-haiku-4-5-20251001",
+    "paper_analyst":        "anthropic/claude-sonnet-4-6",
+    "data_acquirer":        "anthropic/claude-sonnet-4-6",
+    "data_guide":           "anthropic/claude-sonnet-4-6",
+    "data_preparer":        "anthropic/claude-haiku-4-5-20251001",
+    "output_producer":      "anthropic/claude-haiku-4-5-20251001",
+    "reviewer":             "anthropic/claude-haiku-4-5-20251001",
 }
 
 DEFAULT_FALLBACK = "anthropic/claude-sonnet-4-6"

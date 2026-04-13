@@ -159,7 +159,7 @@ def spec_reconciler_node(state: PipelineState) -> dict:
         op = source.get("op", "")
 
         if col and col not in cols:
-            # 2a. For index-based files: "All products" / total aliases → op=sum_row
+            # 2a. For index-based files: "All products" / total aliases → op=sum_row or sum_all
             if is_index_file and col.lower() in _TOTAL_COLUMN_ALIASES:
                 row_key = _resolve_row_key(bm["name"], source.get("filter", {}), idx, industry_expansions)
                 if row_key:
@@ -170,9 +170,18 @@ def spec_reconciler_node(state: PipelineState) -> dict:
                     source.pop("filter", None)
                     changed = True
                 else:
-                    log.warning(f"  [{bm['name']}] column '{col}' (total) but no row key resolved")
-                    n_unfixable += 1
-                    continue
+                    # No specific row → check if filter also implies "all rows" → sum_all
+                    filt_vals = [str(v).lower() for v in source.get("filter", {}).values()]
+                    if any(v in _TOTAL_COLUMN_ALIASES or "all" in v for v in filt_vals):
+                        log.info(f"  [{bm['name']}] total column + all-row filter → op=sum_all")
+                        source["op"] = "sum_all"
+                        source.pop("column", None)
+                        source.pop("filter", None)
+                        changed = True
+                    else:
+                        log.warning(f"  [{bm['name']}] column '{col}' (total) but no row key resolved")
+                        n_unfixable += 1
+                        continue
 
             # 2b. For index-based files: column is a short industry code → expand
             elif is_index_file and col in industry_expansions:
@@ -189,9 +198,24 @@ def spec_reconciler_node(state: PipelineState) -> dict:
                     source["column"] = matches[0]
                     changed = True
                 else:
-                    log.warning(f"  [{bm['name']}] column '{col}' not found; no close match in {cols}")
-                    n_unfixable += 1
-                    continue
+                    # 2d. Prefix match — handles short industry codes like 'B-E'
+                    #     that are too short for fuzzy but clearly prefix a full name
+                    col_upper = col.upper()
+                    prefix_matches = [
+                        c for c in cols
+                        if c.upper() == col_upper
+                        or c.upper().startswith(col_upper + " ")
+                        or c.upper().startswith(col_upper + "-")
+                        or c.upper().startswith(col_upper + ",")
+                    ]
+                    if len(prefix_matches) == 1:
+                        log.info(f"  [{bm['name']}] column '{col}' → '{prefix_matches[0]}' (prefix match)")
+                        source["column"] = prefix_matches[0]
+                        changed = True
+                    else:
+                        log.warning(f"  [{bm['name']}] column '{col}' not found; no close match in {cols}")
+                        n_unfixable += 1
+                        continue
 
         # ── 3. For index-based files: if op=lookup with filter→index mismatch,
         #       the filter fixup may have already removed the filter. Ensure
@@ -207,6 +231,21 @@ def spec_reconciler_node(state: PipelineState) -> dict:
                 source.pop("filter", None)
                 log.info(f"  [{bm['name']}] op=lookup → op=sum_row, row='{row_key}' (structural fix)")
                 changed = True
+            elif filt:
+                # Filter was non-empty but the key referenced the index (removed in step 1),
+                # and no specific row was resolved. If the filter value was a total alias
+                # ("All industries", "Total", etc.), it means "aggregate all rows" → sum_column.
+                filt_vals = [str(v).lower() for v in filt.values()]
+                if any(v in _TOTAL_COLUMN_ALIASES or "all" in v for v in filt_vals):
+                    col = source.get("column")
+                    if col and col in cols:
+                        source["op"] = "sum_column"
+                        source.pop("filter", None)
+                        log.info(
+                            f"  [{bm['name']}] all-row filter + valid column "
+                            f"→ op=sum_column, column='{col}'"
+                        )
+                        changed = True
 
         if changed:
             n_patched += 1

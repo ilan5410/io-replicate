@@ -58,7 +58,9 @@ def cli():
               help="Run only this stage node (e.g. 'reviewer').")
 @click.option("--auto-approve", is_flag=True, default=False,
               help="Skip the human spec approval checkpoint (non-interactive mode).")
-def run(paper, spec, config, start_stage, run_dir, only, auto_approve):
+@click.option("--timeout", type=int, default=None,
+              help="Hard timeout for the full pipeline in seconds. Exits with error if exceeded.")
+def run(paper, spec, config, start_stage, run_dir, only, auto_approve, timeout):
     """Replicate an IO paper end-to-end or resume from a stage."""
     if not paper and not spec:
         console.print("[red]ERROR:[/red] Provide either --paper or --spec.")
@@ -192,10 +194,26 @@ def run(paper, spec, config, start_stage, run_dir, only, auto_approve):
 
     console.print(Panel("[bold green]Starting pipeline...[/bold green]"))
 
+    import signal
+
+    def _timeout_handler(signum, frame):
+        raise TimeoutError(f"Pipeline exceeded --timeout limit of {timeout}s")
+
+    if timeout:
+        signal.signal(signal.SIGALRM, _timeout_handler)
+        signal.alarm(timeout)
+
+    t0 = time.monotonic()
     try:
         thread_id = {"configurable": {"thread_id": run_id}}
         final_state = app.invoke(initial_state, thread_id)
-        _print_results(final_state)
+        elapsed = time.monotonic() - t0
+        if timeout:
+            signal.alarm(0)
+        _print_results(final_state, elapsed_seconds=elapsed)
+    except TimeoutError as e:
+        console.print(f"[bold red]TIMEOUT:[/bold red] {e}")
+        sys.exit(2)
     except Exception as e:
         _print_error(e)
         sys.exit(1)
@@ -262,15 +280,17 @@ def _show_spec_summary(spec: dict):
     console.print(Panel(summary, title="Replication Spec Summary", border_style="blue"))
 
 
-def _print_results(state: dict):
+def _print_results(state: dict, elapsed_seconds: float = 0.0):
     review_passed = state.get("review_passed", False)
     warnings = state.get("review_warnings", [])
     report_path = state.get("review_report_path", "")
 
-    if review_passed:
-        console.print(Panel("[bold green]✓ Pipeline completed successfully.[/bold green]"))
-    else:
-        console.print(Panel("[bold yellow]⚠ Pipeline completed with issues.[/bold yellow]"))
+    mins, secs = divmod(int(elapsed_seconds), 60)
+    elapsed_str = f"{mins}m {secs}s" if mins else f"{secs}s"
+
+    status_line = "✓ Pipeline completed successfully." if review_passed else "⚠ Pipeline completed with issues."
+    style = "bold green" if review_passed else "bold yellow"
+    console.print(Panel(f"[{style}]{status_line}[/{style}]  [{elapsed_str}]"))
 
     if warnings:
         console.print("[yellow]Warnings:[/yellow]")
