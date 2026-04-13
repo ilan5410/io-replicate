@@ -188,7 +188,15 @@ def _resolve(source: dict[str, Any], get_df) -> float:
 
     if op == "sum_column":
         if column not in df.columns:
-            raise KeyError(f"Column '{column}' not in {filename}. Available: {list(df.columns)}")
+            raise KeyError(f"Column '{column}' not in {file_key}. Available: {list(df.columns)}")
+        filt: dict = source.get("filter", {})
+        if filt:
+            mask = pd.Series([True] * len(df), index=df.index)
+            for col, val in filt.items():
+                if col not in df.columns:
+                    raise KeyError(f"Filter column '{col}' not in {file_key}")
+                mask = mask & (df[col].astype(str) == str(val))
+            return float(df.loc[mask, column].sum())
         return float(df[column].sum())
 
     elif op == "sum_row":
@@ -197,7 +205,7 @@ def _resolve(source: dict[str, Any], get_df) -> float:
         if row_key is None:
             raise ValueError("op=sum_row requires a 'row' key")
         if row_key not in df.index:
-            raise KeyError(f"Row '{row_key}' not in {filename}. Available: {list(df.index)}")
+            raise KeyError(f"Row '{row_key}' not in {file_key}. Available: {list(df.index)}")
         return float(df.loc[row_key].sum())
 
     elif op == "sum_all":
@@ -209,13 +217,13 @@ def _resolve(source: dict[str, Any], get_df) -> float:
         mask = pd.Series([True] * len(df), index=df.index)
         for col, val in filt.items():
             if col not in df.columns:
-                raise KeyError(f"Filter column '{col}' not in {filename}")
+                raise KeyError(f"Filter column '{col}' not in {file_key}")
             mask = mask & (df[col].astype(str) == str(val))
         rows = df[mask]
         if len(rows) == 0:
-            raise ValueError(f"No rows in {filename} matching filter {filt}")
+            raise ValueError(f"No rows in {file_key} matching filter {filt}")
         if column not in df.columns:
-            raise KeyError(f"Column '{column}' not in {filename}")
+            raise KeyError(f"Column '{column}' not in {file_key}")
         return float(rows.iloc[0][column])
 
     else:
