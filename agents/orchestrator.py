@@ -18,6 +18,7 @@ from nodes import (
     output_producer_node,
     spec_reconciler_node,
     reviewer_node,
+    human_data_upload_gate_node,
 )
 
 log = logging.getLogger("orchestrator")
@@ -74,6 +75,12 @@ def route_after_approval(state: PipelineState) -> str:
     return "paper_analyst"
 
 
+def route_after_acquisition(state: PipelineState) -> str:
+    if state.get("manual_download_required", False):
+        return "human_data_upload_gate"
+    return "data_guide"
+
+
 def route_after_prep_validator(state: PipelineState) -> str:
     if state.get("preparation_valid", False):
         return "model_builder"
@@ -108,6 +115,7 @@ def build_graph(use_checkpointing: bool = True, checkpoint_db: str = None):
     graph.add_node("classification_mapper", classification_mapper_node)
     graph.add_node("human_approval", human_approval_node)
     graph.add_node("data_acquirer", data_acquirer_node)
+    graph.add_node("human_data_upload_gate", human_data_upload_gate_node)
     graph.add_node("data_guide", data_guide_node)
     graph.add_node("data_preparer", data_preparer_node)
     graph.add_node("model_builder", model_builder_node)
@@ -124,7 +132,8 @@ def build_graph(use_checkpointing: bool = True, checkpoint_db: str = None):
     graph.add_edge("paper_analyst", "classification_mapper")
     graph.add_edge("classification_mapper", "human_approval")
     graph.add_conditional_edges("human_approval", route_after_approval)
-    graph.add_edge("data_acquirer", "data_guide")
+    graph.add_conditional_edges("data_acquirer", route_after_acquisition)
+    graph.add_edge("human_data_upload_gate", "data_guide")
     graph.add_edge("data_guide", "data_preparer")
 
     # Validation gate after data preparation
@@ -153,10 +162,11 @@ def build_graph(use_checkpointing: bool = True, checkpoint_db: str = None):
 
 
 _NODE_FN_MAP = {
-    "paper_analyst":        paper_analyst_node,
-    "classification_mapper": classification_mapper_node,
-    "data_acquirer":        data_acquirer_node,
-    "data_guide":           data_guide_node,
+    "paper_analyst":           paper_analyst_node,
+    "classification_mapper":   classification_mapper_node,
+    "data_acquirer":           data_acquirer_node,
+    "human_data_upload_gate":  human_data_upload_gate_node,
+    "data_guide":              data_guide_node,
     "data_preparer":        data_preparer_node,
     "model_builder":        model_builder_node,
     "decomposer":           decomposer_node,
@@ -168,6 +178,7 @@ _NODE_FN_MAP = {
 _STAGE_TO_NODE = {
     0:   "paper_analyst",
     1:   "data_acquirer",
+    1.2: "human_data_upload_gate",
     1.5: "data_guide",
     2:   "data_preparer",
     3:   "model_builder",

@@ -61,6 +61,46 @@ print(f"Saved {output_path_e} ({size_e:,} bytes)")
 assert size_e > 100_000, f"File too small ({size_e} bytes) — download may have failed"
 ```
 
+## CRITICAL: When data has no public API
+
+If the spec's `data_sources.io_table.type` is NOT one of `figaro_iciot`, and you cannot
+find a public, unauthenticated bulk-download URL for the required data, you MUST:
+
+1. **Do NOT silently substitute a different dataset** (e.g. do not download FIGARO when the spec says WIOD).
+2. Write a `MANUAL_DOWNLOAD_REQUIRED.yaml` file to `data/raw/` using `write_file`:
+
+```yaml
+reason: "WIOD 2016 requires free registration at wiod.org — no public unauthenticated API"
+files_needed:
+  - filename: WIOT<year>_Nov16_ROW.xlsx
+    source_url: https://www.rug.nl/ggdc/valuechain/wiod/wiod-2016-release
+    place_at: data/raw/
+    notes: "Download all country zip, extract the WIOT<year>_Nov16_ROW.xlsx file"
+satellite_needed:
+  - filename: SEA_Nov16.xlsx
+    source_url: https://www.rug.nl/ggdc/valuechain/wiod/wiod-2016-release
+    place_at: data/raw/
+    notes: "Socio-Economic Accounts file, also on the same page"
+```
+
+3. Write a minimal `data_manifest.yaml` marking the datasets as `manual`:
+
+```yaml
+io_table:
+  path: data/raw/<expected_filename>
+  status: manual_download_required
+  source_url: https://...
+satellite_account:
+  path: data/raw/<expected_filename>
+  status: manual_download_required
+  source_url: https://...
+```
+
+4. Stop. Do not attempt further downloads.
+
+This sentinel triggers a human-in-the-loop gate that pauses the pipeline and instructs
+the user to download the file. The pipeline will resume automatically after they confirm.
+
 ## Script Writing Rules
 
 1. **Put ALL imports at the very top of the script** (never inside functions)

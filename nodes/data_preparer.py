@@ -20,6 +20,33 @@ from skills.io_parsers import load_parser
 log = logging.getLogger("data_preparer")
 _console = Console()
 
+# Filename patterns that unambiguously identify a parser type regardless of spec
+_FILE_SIGNATURES: list[tuple[str, str]] = [
+    ("naio_10_fcp_ip1",   "figaro_iciot"),
+    ("figaro",            "figaro_iciot"),
+    ("wiot",              "wiod_mrio"),
+    ("wiod",              "wiod_mrio"),
+    ("icio",              "oecd_icio"),
+    ("mriot",             "exiobase"),
+    ("exiobase",          "exiobase"),
+]
+
+
+def _autodetect_parser(raw_dir: Path, spec_type: str) -> str:
+    """Return the parser type inferred from raw file names, falling back to spec_type."""
+    if not raw_dir.exists():
+        return spec_type
+    filenames = [f.name.lower() for f in raw_dir.iterdir()]
+    for sig, detected in _FILE_SIGNATURES:
+        if any(sig in fn for fn in filenames):
+            if detected != spec_type:
+                log.warning(
+                    f"Auto-detected parser '{detected}' from raw files "
+                    f"(spec said '{spec_type}') — using '{detected}'"
+                )
+            return detected
+    return spec_type
+
 
 def data_preparer_node(state: PipelineState) -> dict:
     """LangGraph node: dispatch to the correct IO parser skill, then save + validate."""
@@ -28,6 +55,12 @@ def data_preparer_node(state: PipelineState) -> dict:
     retry_count = state.get("retry_count", 0)
 
     parser_type = spec["data_sources"]["io_table"]["type"]
+
+    raw_dir = run_dir / "data" / "raw"
+
+    # Auto-detect parser from raw files when spec may be wrong
+    parser_type = _autodetect_parser(raw_dir, parser_type)
+
     _console.print(Panel(
         f"[bold]Stage 2 — Data Preparer[/bold]  (attempt {retry_count + 1})\n"
         f"Parser: {parser_type}\n"
@@ -35,7 +68,6 @@ def data_preparer_node(state: PipelineState) -> dict:
         style="blue"
     ))
 
-    raw_dir = run_dir / "data" / "raw"
     prepared_dir = run_dir / "data" / "prepared"
     prepared_dir.mkdir(parents=True, exist_ok=True)
 

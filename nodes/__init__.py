@@ -8,6 +8,7 @@ try:
     from .paper_analyst import paper_analyst_node
     from .classification_mapper import classification_mapper_node
     from .data_acquirer import data_acquirer_node
+    from .human_data_upload_gate import human_data_upload_gate_node
     from .data_guide import data_guide_node
     from .data_preparer import data_preparer_node
     from .output_producer import output_producer_node
@@ -26,6 +27,7 @@ except ImportError as _import_err:
     paper_analyst_node = _agentic_unavailable          # type: ignore[assignment]
     classification_mapper_node = _agentic_unavailable  # type: ignore[assignment]
     data_acquirer_node = _agentic_unavailable          # type: ignore[assignment]
+    human_data_upload_gate_node = _agentic_unavailable # type: ignore[assignment]
     data_guide_node = _agentic_unavailable             # type: ignore[assignment]
     data_preparer_node = _agentic_unavailable          # type: ignore[assignment]
     output_producer_node = _agentic_unavailable        # type: ignore[assignment]
@@ -38,6 +40,7 @@ __all__ = [
     "paper_analyst_node",
     "classification_mapper_node",
     "data_acquirer_node",
+    "human_data_upload_gate_node",
     "data_guide_node",
     "data_preparer_node",
     "output_producer_node",

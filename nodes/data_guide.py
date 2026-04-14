@@ -136,7 +136,59 @@ def data_guide_node(state: PipelineState) -> dict:
         # Write-through to repo cache
         _write_to_cache(cache_path, guide_path, fingerprint, manifest, spec)
 
-    return {"data_guide": data_guide, "current_stage": 1}
+    # Patch spec parser if the profiled file format doesn't match what spec says
+    spec_patch = _detect_parser_mismatch(raw_dir, spec)
+    result: dict = {"data_guide": data_guide, "current_stage": 1}
+    if spec_patch:
+        result["replication_spec"] = spec_patch
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Parser mismatch detection
+# ---------------------------------------------------------------------------
+
+# Same signatures as data_preparer._autodetect_parser — kept in sync manually
+_FILE_SIGNATURES: list[tuple[str, str]] = [
+    ("naio_10_fcp_ip1",   "figaro_iciot"),
+    ("figaro",            "figaro_iciot"),
+    ("wiot",              "wiod_mrio"),
+    ("wiod",              "wiod_mrio"),
+    ("icio",              "oecd_icio"),
+    ("mriot",             "exiobase"),
+    ("exiobase",          "exiobase"),
+]
+
+
+def _detect_parser_mismatch(raw_dir: Path, spec: dict) -> dict | None:
+    """
+    Check if the actual raw files imply a different parser than spec says.
+
+    Returns an updated copy of spec (with corrected io_table.type) if a
+    mismatch is found, or None if spec is already correct / undetectable.
+    """
+    if not raw_dir.exists():
+        return None
+    filenames = [f.name.lower() for f in raw_dir.iterdir()]
+    spec_type = spec.get("data_sources", {}).get("io_table", {}).get("type", "")
+    for sig, detected in _FILE_SIGNATURES:
+        if any(sig in fn for fn in filenames):
+            if detected != spec_type:
+                import copy
+                patched = copy.deepcopy(spec)
+                patched.setdefault("data_sources", {}).setdefault("io_table", {})["type"] = detected
+                log.warning(
+                    f"Parser mismatch detected: spec says '{spec_type}' but raw files "
+                    f"match '{detected}' — patching replication_spec in state"
+                )
+                _console.print(
+                    f"  [yellow]⚠[/yellow]  Parser corrected: "
+                    f"[red]{spec_type}[/red] → [green]{detected}[/green] "
+                    f"(based on raw file names)"
+                )
+                return patched
+            return None  # matched — spec already correct
+    return None
 
 
 # ---------------------------------------------------------------------------

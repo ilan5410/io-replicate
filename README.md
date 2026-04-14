@@ -15,6 +15,8 @@ flowchart TD
     PA["Stage 0 — Paper Analyst\nOpus · PDF → spec"]
     APP["✅ Human Approval"]
     DA["Stage 1 — Data Acquirer\nSonnet · downloads IC-IOT + employment"]
+    GATE["⏸️ Human Upload Gate\nauto-triggered if no public API"]
+    DG["Stage 1.5 — Data Guide\nSonnet · profiles raw files"]
     DP["Stage 2 — Data Preparer\nHaiku · CSVs → Z, e, x, Em matrices"]
     MB["Stage 3 — Model Builder\nDeterministic · A and L matrices"]
     DC["Stage 4 — Decomposer\nDeterministic · domestic + spillover"]
@@ -26,7 +28,10 @@ flowchart TD
     PA --> APP
     SPEC -.->|skip Stage 0| APP
     APP --> DA
-    DA --> DP
+    DA -->|"auto-download OK"| DG
+    DA -->|"no public API"| GATE
+    GATE -->|"files confirmed"| DG
+    DG --> DP
     DP --> MB
     MB --> DC
     DC --> OP
@@ -45,7 +50,7 @@ flowchart TD
 
     class CONFIG,K1 generalInput
     class PDF,SPEC,K2 projectInput
-    class PA,APP,DA,DP,MB,DC,OP,RV,K3 agentTool
+    class PA,APP,DA,GATE,DG,DP,MB,DC,OP,RV,K3 agentTool
 ```
 
 ## Pipeline overview
@@ -54,6 +59,8 @@ flowchart TD
 |-------|------|-------|------|--------|
 | 0 — Paper Analyst | Single LLM call | Claude Opus | PDF → `replication_spec.yaml` | `replication_spec.yaml` |
 | 1 — Data Acquirer | Agentic loop | Claude Sonnet | Download raw IO tables + satellite data | `data/raw/` |
+| 1.2 — Human Upload Gate | Human-in-the-loop | — | Pauses if data has no public API; user places files manually | `data/raw/` |
+| 1.5 — Data Guide | Agentic loop | Claude Sonnet | Profile raw files; patch spec parser if mismatch detected | `data/raw/data_guide.yaml` |
 | 2 — Data Preparer | Single-shot codegen | Claude Haiku | Parse → Z, e, x, Em matrices | `data/prepared/` |
 | 3 — Model Builder | **Deterministic** | — | A, L, d, employment content | `data/model/` |
 | 4 — Decomposer | **Deterministic** | — | Domestic/spillover, direct/indirect | `data/decomposition/` |
@@ -144,6 +151,26 @@ io-replicate validate --spec specs/figaro_2019/replication_spec.yaml
 | Luxembourg spillover share | 46.7% | ~47% | ~0.6% ✓ PASS |
 
 Remaining deviations are explained by product-vs-industry table type and missing confidential LU/MT employment data — both documented as known limitations in the spec.
+
+## Supported data sources
+
+| Source | Auto-download? | Parser key |
+|--------|---------------|------------|
+| FIGARO IC-IOT (`naio_10_fcp_ip1`) | Yes — Eurostat bulk API | `figaro_iciot` |
+| FIGARO SUT (`naio_10_fcp_r2`) | Yes — Eurostat bulk API | `figaro_iciot` |
+| OECD ICIO | Yes — OECD bulk API | `oecd_icio` |
+| EXIOBASE 3 | Yes — Zenodo | `exiobase` |
+| WIOD 2016 | **No** — requires free registration at [wiod.org](https://www.rug.nl/ggdc/valuechain/wiod/) | `wiod_mrio` |
+
+When a paper requires a dataset with no public API (e.g. WIOD), Stage 1 writes a `MANUAL_DOWNLOAD_REQUIRED.yaml` sentinel and the pipeline pauses automatically at a **Human Upload Gate**. The gate prints the exact filename, download URL and destination path, then waits for you to confirm. Once you place the file and press Y, profiling and preparation continue normally.
+
+To resume after manually placing files:
+
+```bash
+io-replicate run --spec runs/<run_id>/replication_spec.yaml \
+                 --run-dir runs/<run_id> \
+                 --start-stage 1.5
+```
 
 ## Architecture
 

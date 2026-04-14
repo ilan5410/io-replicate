@@ -58,6 +58,32 @@ def data_acquirer_node(state: PipelineState) -> dict:
         stage_name="data_acquirer", max_cost_usd=max_cost,
     )
 
+    import yaml as _yaml2
+
+    # Check for manual-download sentinel BEFORE checking the manifest
+    sentinel_path = raw_dir / "MANUAL_DOWNLOAD_REQUIRED.yaml"
+    if sentinel_path.exists():
+        with open(sentinel_path) as f:
+            instructions = _yaml2.safe_load(f) or {}
+        log.info("Data Acquirer signalled manual download required")
+        _console.print(
+            "[yellow]⚠[/yellow]  Stage 1 — manual download required "
+            "(pipeline will pause for human data upload)"
+        )
+        # Still load the manifest if the agent wrote one (may have partial entries)
+        manifest_path = raw_dir / "data_manifest.yaml"
+        data_manifest = {}
+        if manifest_path.exists():
+            with open(manifest_path) as f:
+                data_manifest = _yaml2.safe_load(f) or {}
+        return {
+            "data_manifest": data_manifest,
+            "acquisition_complete": False,
+            "manual_download_required": True,
+            "manual_download_instructions": instructions,
+            "current_stage": 1,
+        }
+
     # Load manifest — fail hard if missing (Stage 2 cannot run without data)
     manifest_path = raw_dir / "data_manifest.yaml"
     if not manifest_path.exists():
@@ -73,7 +99,6 @@ def data_acquirer_node(state: PipelineState) -> dict:
             f"io-replicate run --spec <spec> --start-stage 1"
         )
 
-    import yaml as _yaml2
     with open(manifest_path) as f:
         data_manifest = _yaml2.safe_load(f) or {}
     log.info(f"Data manifest loaded: {list(data_manifest.keys())}")
@@ -83,5 +108,6 @@ def data_acquirer_node(state: PipelineState) -> dict:
     return {
         "data_manifest": data_manifest,
         "acquisition_complete": True,
+        "manual_download_required": False,
         "current_stage": 1,
     }

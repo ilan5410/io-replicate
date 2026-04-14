@@ -52,6 +52,10 @@ class PipelineState(TypedDict, total=False):
     review_warnings: list
     review_errors: list
 
+    # ── Manual data upload gate ───────────────────────────────────────────────
+    manual_download_required: bool       # True when data_acquirer cannot auto-download
+    manual_download_instructions: dict   # {reason, files_needed: [{filename, source_url, place_at}]}
+
     # ── Control flow ─────────────────────────────────────────────────────────
     current_stage: int
     retry_count: int
